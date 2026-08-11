@@ -180,6 +180,30 @@ pub async fn handle_bridge_request(
         "/manager/open" => ctx.runtime.open_manager().await,
         "/manager/open-transient" => ctx.runtime.open_transient_manager().await,
         "/backend/status" => ctx.runtime.backend_status().await,
+        "/clawkit/account/status" => {
+            Ok(crate::clawkit_account::ClawkitAccountClient::default().status())
+        }
+        "/clawkit/account/login" => {
+            let username = payload
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let password = payload
+                .get("password")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            crate::clawkit_account::ClawkitAccountClient::default()
+                .login(username, password)
+                .await
+        }
+        "/clawkit/account/logout" => {
+            crate::clawkit_account::ClawkitAccountClient::default().logout()
+        }
+        "/clawkit/account/socket-ticket" => {
+            crate::clawkit_account::ClawkitAccountClient::default()
+                .create_socket_ticket()
+                .await
+        }
         "/codex-model-catalog" | "/codex-config-model" => ctx.runtime.codex_model_catalog().await,
         "/diagnostics/log" => diagnostic_log_value(payload.clone()),
         "/llm-proxy" => llm_proxy_value(payload.clone()).await,
