@@ -204,6 +204,17 @@ pub async fn handle_bridge_request(
                 .create_socket_ticket()
                 .await
         }
+        "/clawkit/remote/status" => crate::clawkit_remote::status(),
+        "/clawkit/remote/start" => crate::clawkit_remote::start(),
+        "/clawkit/remote/send" => {
+            let message = payload
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            crate::clawkit_remote::send(message)
+        }
+        "/clawkit/remote/poll" => crate::clawkit_remote::poll(),
+        "/clawkit/remote/stop" => crate::clawkit_remote::stop(),
         "/codex-model-catalog" | "/codex-config-model" => ctx.runtime.codex_model_catalog().await,
         "/diagnostics/log" => diagnostic_log_value(payload.clone()),
         "/llm-proxy" => llm_proxy_value(payload.clone()).await,

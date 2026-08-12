@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "1";
+  const VERSION = "2";
   if (window.__clawkitAccount?.version === VERSION) {
     window.__clawkitAccount.ensureEntry?.();
     return;
@@ -12,6 +12,9 @@
     message: "尚未登录",
     socket: null,
     reconnectTimer: null,
+    pollTimer: null,
+    pollBusy: false,
+    inbound: Promise.resolve(),
     stopped: false,
   };
 
@@ -71,6 +74,8 @@
     state.stopped = stop;
     clearTimeout(state.reconnectTimer);
     state.reconnectTimer = null;
+    clearInterval(state.pollTimer);
+    state.pollTimer = null;
     const socket = state.socket;
     state.socket = null;
     if (socket) socket.close();
@@ -79,6 +84,40 @@
       state.message = "连接已停止";
     }
     updateUi();
+  }
+
+  async function pollRemote() {
+    if (state.pollBusy || state.socket?.readyState !== WebSocket.OPEN) return;
+    state.pollBusy = true;
+    try {
+      const result = await call("/clawkit/remote/poll");
+      for (const payload of result.messages || []) {
+        if (state.socket?.readyState !== WebSocket.OPEN) break;
+        state.socket.send(JSON.stringify({ type: "relay.data", payload }));
+      }
+    } catch (error) {
+      state.connection = "error";
+      state.message = error?.message || String(error);
+      updateUi();
+    } finally {
+      state.pollBusy = false;
+    }
+  }
+
+  function startPolling() {
+    clearInterval(state.pollTimer);
+    state.pollTimer = setInterval(() => void pollRemote(), 80);
+    void pollRemote();
+  }
+
+  function sendRemote(payload) {
+    state.inbound = state.inbound
+      .then(() => call("/clawkit/remote/send", { message: String(payload || "") }))
+      .catch((error) => {
+        state.connection = "error";
+        state.message = error?.message || String(error);
+        updateUi();
+      });
   }
 
   function scheduleReconnect() {
@@ -96,6 +135,7 @@
     state.message = "正在申请一次性安全连接票据";
     updateUi();
     try {
+      await call("/clawkit/remote/start");
       const ticket = await call("/clawkit/account/socket-ticket");
       if (!state.authenticated) return;
       const socket = new WebSocket(ticket.websocket_url);
@@ -103,7 +143,8 @@
       socket.onopen = () => {
         if (state.socket !== socket) return;
         state.connection = "waiting";
-        state.message = "桌面端已上线，同账号手机会自动发现此设备";
+        state.message = "Codex 会话桥已上线，同账号手机会自动发现此设备";
+        startPolling();
         updateUi();
       };
       socket.onmessage = (event) => {
@@ -118,6 +159,8 @@
             state.message = message.online
               ? "同账号手机已连接"
               : "手机已离线，桌面端会继续等待";
+          } else if (message.type === "relay.data") {
+            sendRemote(message.payload);
           }
           updateUi();
         } catch (_) {
@@ -224,6 +267,7 @@
     overlay.querySelector("[data-clawkit-reconnect]")?.addEventListener("click", () => void connect());
     overlay.querySelector("[data-clawkit-logout]")?.addEventListener("click", async () => {
       disconnect(true);
+      try { await call("/clawkit/remote/stop"); } catch (_) {}
       try { await call("/clawkit/account/logout"); } catch (_) {}
       state.authenticated = false;
       state.user = null;
@@ -272,7 +316,7 @@
     updateUi();
   }
 
-  window.__clawkitAccount = { version: VERSION, state, ensureEntry, openModal, refresh, connect, disconnect };
+  window.__clawkitAccount = { version: VERSION, state, ensureEntry, openModal, refresh, connect, disconnect, pollRemote };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ensureEntry, { once: true });
   else ensureEntry();
   if (document.documentElement && typeof MutationObserver === "function") {

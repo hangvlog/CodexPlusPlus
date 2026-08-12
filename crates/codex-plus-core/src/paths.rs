@@ -2,17 +2,26 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 const APP_STATE_DIR: &str = ".codex-session-delete";
+const APP_STATE_DIR_OVERRIDE_ENV: &str = "CODEX_PLUS_STATE_DIR";
 const SETTINGS_FILE: &str = "settings.json";
 const LATEST_STATUS_FILE: &str = "latest-status.json";
 const DIAGNOSTIC_LOG_FILE: &str = "codex-plus.log";
 const PENDING_PROVIDER_IMPORT_FILE: &str = "pending-provider-import.json";
 
 pub fn default_app_state_dir() -> PathBuf {
+    if let Some(override_dir) = app_state_dir_override(std::env::var_os(APP_STATE_DIR_OVERRIDE_ENV))
+    {
+        return override_dir;
+    }
     if let Some(home_dir) = directories::BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf()) {
         return home_dir.join(APP_STATE_DIR);
     }
 
     PathBuf::from(APP_STATE_DIR)
+}
+
+fn app_state_dir_override(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    value.filter(|value| !value.is_empty()).map(PathBuf::from)
 }
 
 pub fn default_settings_path() -> PathBuf {
@@ -94,5 +103,15 @@ mod tests {
         let path = default_pending_provider_import_path();
 
         assert!(path.ends_with(".codex-session-delete/pending-provider-import.json"));
+    }
+
+    #[test]
+    fn explicit_state_directory_override_is_normalized() {
+        assert_eq!(
+            app_state_dir_override(Some("/tmp/codex-plus-isolated-state".into())),
+            Some(PathBuf::from("/tmp/codex-plus-isolated-state"))
+        );
+        assert_eq!(app_state_dir_override(Some("".into())), None);
+        assert_eq!(app_state_dir_override(None), None);
     }
 }
