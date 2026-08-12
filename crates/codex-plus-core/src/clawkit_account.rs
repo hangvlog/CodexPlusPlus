@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-const DEFAULT_API_BASE: &str = "https://clawkit.chat";
+const DEFAULT_ACCOUNT_API_BASE: &str = "https://image.clawkit.chat";
+const DEFAULT_RELAY_API_BASE: &str = "https://clawkit.chat";
 const SESSION_FILE: &str = "clawkit-account.json";
 const PRODUCT: &str = "codex-remote";
 const DEVICE_NAME: &str = "ClawKit Codex Desktop";
@@ -23,17 +24,26 @@ struct StoredSession {
 
 #[derive(Clone)]
 pub struct ClawkitAccountClient {
-    api_base: String,
+    account_api_base: String,
+    relay_api_base: String,
     session_path: PathBuf,
     client: reqwest::Client,
 }
 
 impl Default for ClawkitAccountClient {
     fn default() -> Self {
-        let api_base =
-            std::env::var("CLAWKIT_API_BASE_URL").unwrap_or_else(|_| DEFAULT_API_BASE.to_string());
-        Self::new(
-            api_base,
+        let legacy_base = std::env::var("CLAWKIT_API_BASE_URL").ok();
+        let account_api_base = std::env::var("CLAWKIT_ACCOUNT_API_BASE_URL")
+            .ok()
+            .or_else(|| legacy_base.clone())
+            .unwrap_or_else(|| DEFAULT_ACCOUNT_API_BASE.to_string());
+        let relay_api_base = std::env::var("CLAWKIT_RELAY_API_BASE_URL")
+            .ok()
+            .or(legacy_base)
+            .unwrap_or_else(|| DEFAULT_RELAY_API_BASE.to_string());
+        Self::with_endpoints(
+            account_api_base,
+            relay_api_base,
             crate::paths::default_app_state_dir().join(SESSION_FILE),
         )
         .expect("ClawKit HTTP client should initialize")
@@ -45,7 +55,17 @@ impl ClawkitAccountClient {
         api_base: impl Into<String>,
         session_path: impl Into<PathBuf>,
     ) -> anyhow::Result<Self> {
-        let api_base = normalize_api_base(&api_base.into())?;
+        let api_base = api_base.into();
+        Self::with_endpoints(api_base.clone(), api_base, session_path)
+    }
+
+    pub fn with_endpoints(
+        account_api_base: impl Into<String>,
+        relay_api_base: impl Into<String>,
+        session_path: impl Into<PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let account_api_base = normalize_api_base(&account_api_base.into())?;
+        let relay_api_base = normalize_api_base(&relay_api_base.into())?;
         let client = reqwest::Client::builder()
             .user_agent(format!(
                 "CodexPlusPlus-ClawKit/{}",
@@ -55,7 +75,8 @@ impl ClawkitAccountClient {
             .timeout(std::time::Duration::from_secs(20))
             .build()?;
         Ok(Self {
-            api_base,
+            account_api_base,
+            relay_api_base,
             session_path: session_path.into(),
             client,
         })
@@ -80,7 +101,7 @@ impl ClawkitAccountClient {
             .unwrap_or_else(|| format!("clawkit-codex-{}", Uuid::new_v4()));
         let response = self
             .client
-            .post(format!("{}/auth/login", self.api_base))
+            .post(format!("{}/auth/login", self.account_api_base))
             .json(&json!({
                 "username": username,
                 "password": password,
@@ -133,7 +154,7 @@ impl ClawkitAccountClient {
             .client
             .post(format!(
                 "{}/api/codex-remote/account/socket-ticket",
-                self.api_base
+                self.relay_api_base
             ))
             .bearer_auth(&session.token)
             .json(&json!({
@@ -161,12 +182,17 @@ impl ClawkitAccountClient {
             "status": "ok",
             "websocket_url": format!(
                 "{}/api/codex-remote/account/ws?ticket={}",
-                websocket_base(&self.api_base),
+                websocket_base(&self.relay_api_base),
                 ticket
             ),
             "expires_at": body.get("expires_at").cloned().unwrap_or(Value::Null),
             "device_id": session.device_id,
         }))
+    }
+
+    pub(crate) fn active_credentials(&self) -> anyhow::Result<(String, String)> {
+        let session = self.load_active_session()?;
+        Ok((session.token, session.device_id))
     }
 
     fn load_active_session(&self) -> anyhow::Result<StoredSession> {

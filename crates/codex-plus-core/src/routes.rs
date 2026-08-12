@@ -204,8 +204,13 @@ pub async fn handle_bridge_request(
                 .create_socket_ticket()
                 .await
         }
+        "/clawkit/gateway/status" => {
+            crate::clawkit_gateway::ClawkitGatewayClient::default()
+                .status()
+                .await
+        }
         "/clawkit/remote/status" => crate::clawkit_remote::status(),
-        "/clawkit/remote/start" => crate::clawkit_remote::start(),
+        "/clawkit/remote/start" => crate::clawkit_remote::start().await,
         "/clawkit/remote/send" => {
             let message = payload
                 .get("message")

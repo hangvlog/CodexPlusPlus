@@ -55,7 +55,13 @@ pub fn status() -> anyhow::Result<Value> {
     Ok(json!({ "status": "ok", "running": refresh_process(&mut state)? }))
 }
 
-pub fn start() -> anyhow::Result<Value> {
+pub async fn start() -> anyhow::Result<Value> {
+    let gateway = crate::clawkit_gateway::ClawkitGatewayClient::default()
+        .bootstrap()
+        .await?;
+    let catalog_path = crate::clawkit_gateway::write_model_catalog(&gateway.models)?;
+    let default_model =
+        preferred_default_model(&gateway.models).context("当前账号没有可用的 API 模型")?;
     let mut state = remote_state()
         .lock()
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
@@ -69,11 +75,42 @@ pub fn start() -> anyhow::Result<Value> {
         .map_err(|error| anyhow::anyhow!(error.to_string()))?
         .clear();
     let binary = std::env::var("CODEX_REMOTE_CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
-    let mut child = Command::new(&binary)
+    let mut command = Command::new(&binary);
+    command
+        .arg("-c")
+        .arg(toml_override("model_provider", "clawkit"))
+        .arg("-c")
+        .arg(toml_override("model", default_model))
+        .arg("-c")
+        .arg(toml_override(
+            "model_catalog_json",
+            catalog_path.to_string_lossy().as_ref(),
+        ))
+        .arg("-c")
+        .arg(toml_override("model_providers.clawkit.name", "ClawKit API"))
+        .arg("-c")
+        .arg(toml_override(
+            "model_providers.clawkit.base_url",
+            &gateway.base_url,
+        ))
+        .arg("-c")
+        .arg(toml_override(
+            "model_providers.clawkit.env_key",
+            "CLAWKIT_CODEX_API_KEY",
+        ))
+        .arg("-c")
+        .arg(toml_override(
+            "model_providers.clawkit.wire_api",
+            "responses",
+        ))
+        .arg("-c")
+        .arg("model_providers.clawkit.requires_openai_auth=false")
         .arg("app-server")
+        .env("CLAWKIT_CODEX_API_KEY", gateway.api_key)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    let mut child = command
         .spawn()
         .with_context(|| format!("无法启动 Codex app-server：{binary}"))?;
     let stdin = child
@@ -97,6 +134,22 @@ pub fn start() -> anyhow::Result<Value> {
     });
     state.process = Some(ServerProcess { child, stdin });
     Ok(json!({ "status": "ok", "running": true }))
+}
+
+fn preferred_default_model(models: &[String]) -> Option<&str> {
+    const PREFERRED: &[&str] = &["gpt-5.6", "gpt-5.5", "gpt-5.4", "gpt-5.2"];
+    PREFERRED
+        .iter()
+        .find_map(|preferred| models.iter().find(|model| model.as_str() == *preferred))
+        .or_else(|| models.first())
+        .map(String::as_str)
+}
+
+fn toml_override(key: &str, value: &str) -> String {
+    format!(
+        "{key}={}",
+        serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string())
+    )
 }
 
 pub fn send(payload: &str) -> anyhow::Result<Value> {
@@ -156,7 +209,7 @@ fn normalize_protocol_payload(payload: &str) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_protocol_payload;
+    use super::{normalize_protocol_payload, preferred_default_model, toml_override};
 
     #[test]
     fn protocol_payload_is_normalized_to_one_json_line() {
@@ -170,5 +223,20 @@ mod tests {
     fn protocol_payload_rejects_non_objects() {
         assert!(normalize_protocol_payload("[]").is_err());
         assert!(normalize_protocol_payload("not-json").is_err());
+    }
+
+    #[test]
+    fn gateway_overrides_keep_secrets_out_of_process_arguments() {
+        assert_eq!(
+            toml_override(
+                "model_providers.clawkit.base_url",
+                "https://api.clawkit.chat/v1"
+            ),
+            r#"model_providers.clawkit.base_url="https://api.clawkit.chat/v1""#
+        );
+        assert_eq!(
+            preferred_default_model(&["claude-sonnet".into(), "gpt-5.5".into()]),
+            Some("gpt-5.5")
+        );
     }
 }
