@@ -26,6 +26,7 @@ impl Drop for ServerProcess {
 struct RemoteState {
     process: Option<ServerProcess>,
     output: Arc<Mutex<VecDeque<String>>>,
+    errors: Arc<Mutex<VecDeque<String>>>,
 }
 
 static REMOTE_STATE: OnceLock<Mutex<RemoteState>> = OnceLock::new();
@@ -52,7 +53,18 @@ pub fn status() -> anyhow::Result<Value> {
     let mut state = remote_state()
         .lock()
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    Ok(json!({ "status": "ok", "running": refresh_process(&mut state)? }))
+    let running = refresh_process(&mut state)?;
+    let error = if running {
+        None
+    } else {
+        state
+            .errors
+            .lock()
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?
+            .back()
+            .cloned()
+    };
+    Ok(json!({ "status": "ok", "running": running, "error": error }))
 }
 
 pub async fn start() -> anyhow::Result<Value> {
@@ -71,6 +83,11 @@ pub async fn start() -> anyhow::Result<Value> {
 
     state
         .output
+        .lock()
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?
+        .clear();
+    state
+        .errors
         .lock()
         .map_err(|error| anyhow::anyhow!(error.to_string()))?
         .clear();
@@ -109,7 +126,7 @@ pub async fn start() -> anyhow::Result<Value> {
         .env("CLAWKIT_CODEX_API_KEY", gateway.api_key)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     let mut child = command
         .spawn()
         .with_context(|| format!("无法启动 Codex app-server：{binary}"))?;
@@ -121,12 +138,27 @@ pub async fn start() -> anyhow::Result<Value> {
         .stdout
         .take()
         .context("Codex app-server stdout 不可用")?;
+    let stderr = child
+        .stderr
+        .take()
+        .context("Codex app-server stderr 不可用")?;
     let output = Arc::clone(&state.output);
     std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {
             let Ok(payload) = line else { break };
             let Ok(mut queue) = output.lock() else { break };
             if queue.len() >= MAX_QUEUED_MESSAGES {
+                queue.pop_front();
+            }
+            queue.push_back(payload);
+        }
+    });
+    let errors = Arc::clone(&state.errors);
+    std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines() {
+            let Ok(payload) = line else { break };
+            let Ok(mut queue) = errors.lock() else { break };
+            if queue.len() >= 20 {
                 queue.pop_front();
             }
             queue.push_back(payload);

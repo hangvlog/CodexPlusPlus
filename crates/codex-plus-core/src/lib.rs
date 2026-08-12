@@ -6,6 +6,7 @@ pub mod ccs_import;
 pub mod cdp;
 pub mod clawkit_account;
 pub mod clawkit_gateway;
+pub mod clawkit_relay;
 pub mod clawkit_remote;
 pub mod codex_app_state;
 pub mod codex_home;

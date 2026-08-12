@@ -19,7 +19,6 @@ async function main() {
     await page.goto("data:text/html,<html><head><title>Codex Mock</title></head><body><main>Codex</main></body></html>");
     await page.evaluate(() => {
       window.__clawkitTestCalls = [];
-      window.__clawkitPolled = false;
       window.__codexSessionDeleteBridge = async (route, payload) => {
         window.__clawkitTestCalls.push({ route, payload });
         if (route === "/clawkit/account/status") {
@@ -35,51 +34,19 @@ async function main() {
             user: { username: "alice", nickname: "Alice" },
           };
         }
-        if (route === "/clawkit/account/socket-ticket") {
-          return { status: "ok", websocket_url: "ws://mock.test/account?ticket=once" };
-        }
         if (route === "/clawkit/account/logout") {
           return { status: "ok", authenticated: false };
         }
-        if (route === "/clawkit/remote/start") {
-          return { status: "ok", running: true };
+        if (route === "/clawkit/relay/start") {
+          return { status: "ok", connection: "waiting", message: "等待同账号手机" };
         }
-        if (route === "/clawkit/remote/send") {
-          return { status: "ok" };
+        if (route === "/clawkit/relay/status") {
+          return { status: "ok", connection: "connected", message: "同账号手机已连接", mobile_online: true };
         }
-        if (route === "/clawkit/remote/poll") {
-          if (window.__clawkitPolled) return { status: "ok", messages: [] };
-          window.__clawkitPolled = true;
-          return { status: "ok", messages: ['{"id":1,"result":{"ok":true}}'] };
-        }
-        if (route === "/clawkit/remote/stop") {
-          return { status: "ok", running: false };
+        if (route === "/clawkit/relay/stop") {
+          return { status: "ok", connection: "disconnected" };
         }
         return { status: "failed", message: "unexpected route" };
-      };
-      window.WebSocket = class MockWebSocket {
-        static OPEN = 1;
-        static instances = [];
-        constructor(url) {
-          this.url = url;
-          this.readyState = 0;
-          this.sent = [];
-          window.WebSocket.instances.push(this);
-          setTimeout(() => {
-            this.readyState = 1;
-            this.onopen?.();
-            this.onmessage?.({ data: JSON.stringify({ type: "relay.ready", role: "desktop" }) });
-            this.onmessage?.({ data: JSON.stringify({ type: "relay.peer", role: "mobile", online: true }) });
-            this.onmessage?.({ data: JSON.stringify({ type: "relay.data", payload: '{"id":2,"method":"thread/list","params":{}}' }) });
-          }, 10);
-        }
-        send(payload) {
-          this.sent.push(payload);
-        }
-        close() {
-          this.readyState = 3;
-          this.onclose?.();
-        }
       };
     });
     await page.addScriptTag({
@@ -103,31 +70,23 @@ async function main() {
     assert.equal(await modal.locator("input[name=password]").inputValue(), "");
     assert.equal(await entry.locator("[data-clawkit-entry-label]").textContent(), "Alice");
     await page.waitForFunction(() =>
-      window.__clawkitTestCalls.some((call) => call.route === "/clawkit/remote/send") &&
-      window.WebSocket.instances[0]?.sent.length > 0,
+      window.__clawkitTestCalls.some((call) => call.route === "/clawkit/relay/status"),
     );
     const calls = await page.evaluate(() => window.__clawkitTestCalls);
     assert.deepEqual(
-      calls.map((call) => call.route).filter((route) => route !== "/clawkit/remote/poll"),
+      calls.map((call) => call.route).filter((route) => route !== "/clawkit/relay/status"),
       [
         "/clawkit/account/status",
         "/clawkit/account/login",
-        "/clawkit/remote/start",
-        "/clawkit/account/socket-ticket",
-        "/clawkit/remote/send",
+        "/clawkit/relay/start",
       ],
     );
-    const sent = await page.evaluate(() => window.WebSocket.instances[0].sent);
-    assert.deepEqual(JSON.parse(sent[0]), {
-      type: "relay.data",
-      payload: '{"id":1,"result":{"ok":true}}',
-    });
 
     await modal.locator("[data-clawkit-logout]").click();
     await modal.locator("[data-clawkit-login-form]").waitFor({ state: "visible" });
     assert.equal(await entry.locator("[data-clawkit-entry-label]").textContent(), "ClawKit");
     await page.waitForFunction(() =>
-      window.__clawkitTestCalls.some((call) => call.route === "/clawkit/remote/stop") &&
+      window.__clawkitTestCalls.some((call) => call.route === "/clawkit/relay/stop") &&
       window.__clawkitTestCalls.some((call) => call.route === "/clawkit/account/logout"),
     );
     assert.deepEqual(browserErrors, []);

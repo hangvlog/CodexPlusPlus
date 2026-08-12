@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = "2";
+  const VERSION = "3";
   if (window.__clawkitAccount?.version === VERSION) {
     window.__clawkitAccount.ensureEntry?.();
     return;
@@ -10,11 +10,9 @@
     user: null,
     connection: "disconnected",
     message: "尚未登录",
-    socket: null,
     reconnectTimer: null,
     pollTimer: null,
     pollBusy: false,
-    inbound: Promise.resolve(),
     stopped: false,
   };
 
@@ -76,9 +74,6 @@
     state.reconnectTimer = null;
     clearInterval(state.pollTimer);
     state.pollTimer = null;
-    const socket = state.socket;
-    state.socket = null;
-    if (socket) socket.close();
     if (state.authenticated && stop) {
       state.connection = "disconnected";
       state.message = "连接已停止";
@@ -87,18 +82,19 @@
   }
 
   async function pollRemote() {
-    if (state.pollBusy || state.socket?.readyState !== WebSocket.OPEN) return;
+    if (state.pollBusy || !state.authenticated) return;
     state.pollBusy = true;
     try {
-      const result = await call("/clawkit/remote/poll");
-      for (const payload of result.messages || []) {
-        if (state.socket?.readyState !== WebSocket.OPEN) break;
-        state.socket.send(JSON.stringify({ type: "relay.data", payload }));
-      }
+      const result = await call("/clawkit/relay/status");
+      state.connection = result.connection || "error";
+      state.message = result.message || "ClawKit 连接状态未知";
+      updateUi();
+      if (state.connection === "error") scheduleReconnect();
     } catch (error) {
       state.connection = "error";
       state.message = error?.message || String(error);
       updateUi();
+      scheduleReconnect();
     } finally {
       state.pollBusy = false;
     }
@@ -106,18 +102,8 @@
 
   function startPolling() {
     clearInterval(state.pollTimer);
-    state.pollTimer = setInterval(() => void pollRemote(), 80);
+    state.pollTimer = setInterval(() => void pollRemote(), 500);
     void pollRemote();
-  }
-
-  function sendRemote(payload) {
-    state.inbound = state.inbound
-      .then(() => call("/clawkit/remote/send", { message: String(payload || "") }))
-      .catch((error) => {
-        state.connection = "error";
-        state.message = error?.message || String(error);
-        updateUi();
-      });
   }
 
   function scheduleReconnect() {
@@ -135,52 +121,12 @@
     state.message = "正在申请一次性安全连接票据";
     updateUi();
     try {
-      await call("/clawkit/remote/start");
-      const ticket = await call("/clawkit/account/socket-ticket");
+      const result = await call("/clawkit/relay/start");
       if (!state.authenticated) return;
-      const socket = new WebSocket(ticket.websocket_url);
-      state.socket = socket;
-      socket.onopen = () => {
-        if (state.socket !== socket) return;
-        state.connection = "waiting";
-        state.message = "Codex 会话桥已上线，同账号手机会自动发现此设备";
-        startPolling();
-        updateUi();
-      };
-      socket.onmessage = (event) => {
-        if (state.socket !== socket) return;
-        try {
-          const message = JSON.parse(String(event.data));
-          if (message.type === "relay.ready") {
-            state.connection = "waiting";
-            state.message = "账号连接成功，正在等待同账号手机";
-          } else if (message.type === "relay.peer" && message.role === "mobile") {
-            state.connection = message.online ? "connected" : "waiting";
-            state.message = message.online
-              ? "同账号手机已连接"
-              : "手机已离线，桌面端会继续等待";
-          } else if (message.type === "relay.data") {
-            sendRemote(message.payload);
-          }
-          updateUi();
-        } catch (_) {
-          // 远程协议数据由后续 Codex 会话桥接模块处理。
-        }
-      };
-      socket.onerror = () => {
-        if (state.socket !== socket) return;
-        state.connection = "error";
-        state.message = "无法连接 ClawKit 中继服务";
-        updateUi();
-      };
-      socket.onclose = () => {
-        if (state.socket !== socket) return;
-        state.socket = null;
-        state.connection = "error";
-        state.message = "账号连接已断开，正在自动重连";
-        updateUi();
-        scheduleReconnect();
-      };
+      state.connection = result.connection || "connecting";
+      state.message = result.message || "正在连接 ClawKit 中继服务";
+      startPolling();
+      updateUi();
     } catch (error) {
       state.connection = "error";
       state.message = error?.message || String(error);
@@ -267,7 +213,7 @@
     overlay.querySelector("[data-clawkit-reconnect]")?.addEventListener("click", () => void connect());
     overlay.querySelector("[data-clawkit-logout]")?.addEventListener("click", async () => {
       disconnect(true);
-      try { await call("/clawkit/remote/stop"); } catch (_) {}
+      try { await call("/clawkit/relay/stop"); } catch (_) {}
       try { await call("/clawkit/account/logout"); } catch (_) {}
       state.authenticated = false;
       state.user = null;

@@ -209,6 +209,9 @@ pub async fn handle_bridge_request(
                 .status()
                 .await
         }
+        "/clawkit/relay/status" => crate::clawkit_relay::status(),
+        "/clawkit/relay/start" => crate::clawkit_relay::start().await,
+        "/clawkit/relay/stop" => crate::clawkit_relay::stop(),
         "/clawkit/remote/status" => crate::clawkit_remote::status(),
         "/clawkit/remote/start" => crate::clawkit_remote::start().await,
         "/clawkit/remote/send" => {

@@ -6,6 +6,8 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::model_suffix::ModelCatalogEntry;
+
 const DEFAULT_GATEWAY_API_BASE: &str = "https://api.clawkit.chat";
 const MODEL_CATALOG_FILE: &str = "clawkit-models.json";
 
@@ -149,38 +151,20 @@ pub(crate) fn write_model_catalog(models: &[String]) -> anyhow::Result<PathBuf> 
         bail!("当前账号没有可用的 API 模型");
     }
     let entries = unique
-        .iter()
-        .enumerate()
-        .map(|(index, slug)| model_catalog_entry(slug, index))
+        .into_iter()
+        .map(|slug| ModelCatalogEntry {
+            display_name: slug.clone(),
+            slug,
+            suffix_window: None,
+        })
         .collect::<Vec<_>>();
+    let catalog = crate::model_suffix::build_model_catalog_json(&entries, None);
     let path = crate::paths::default_app_state_dir().join(MODEL_CATALOG_FILE);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    crate::settings::atomic_write(
-        &path,
-        serde_json::to_vec_pretty(&json!({ "models": entries }))?.as_slice(),
-    )?;
+    crate::settings::atomic_write(&path, catalog.as_bytes())?;
     Ok(path)
-}
-
-fn model_catalog_entry(slug: &str, priority: usize) -> Value {
-    json!({
-        "slug": slug,
-        "display_name": slug,
-        "description": "ClawKit API 代理模型",
-        "default_reasoning_level": "medium",
-        "supported_reasoning_levels": [
-            { "effort": "low", "description": "更快响应" },
-            { "effort": "medium", "description": "平衡速度与质量" },
-            { "effort": "high", "description": "更深入推理" },
-            { "effort": "xhigh", "description": "最高推理强度" }
-        ],
-        "shell_type": "shell_command",
-        "visibility": "list",
-        "supported_in_api": true,
-        "priority": priority,
-    })
 }
 
 fn normalize_api_base(value: &str) -> anyhow::Result<String> {
@@ -197,13 +181,25 @@ mod tests {
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    use super::{ClawkitGatewayClient, model_catalog_entry};
+    use super::ClawkitGatewayClient;
+    use crate::model_suffix::{ModelCatalogEntry, build_model_catalog_json};
 
     #[test]
-    fn catalog_entry_keeps_gateway_model_slug() {
-        let entry = model_catalog_entry("gpt-5.5", 0);
-        assert_eq!(entry["slug"], "gpt-5.5");
+    fn catalog_entry_keeps_gateway_model_slug_and_complete_schema() {
+        let catalog: serde_json::Value = serde_json::from_str(&build_model_catalog_json(
+            &[ModelCatalogEntry {
+                slug: "custom-gateway-model".to_string(),
+                display_name: "custom-gateway-model".to_string(),
+                suffix_window: None,
+            }],
+            None,
+        ))
+        .unwrap();
+        let entry = &catalog["models"][0];
+        assert_eq!(entry["slug"], "custom-gateway-model");
         assert_eq!(entry["visibility"], "list");
+        assert_eq!(entry["support_verbosity"], true);
+        assert!(entry.get("truncation_policy").is_some());
     }
 
     #[tokio::test]

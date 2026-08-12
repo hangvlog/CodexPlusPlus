@@ -101,6 +101,17 @@ fn build_catalog_json_uses_fallback_for_no_suffix_entries() {
 }
 
 #[test]
+fn build_catalog_json_uses_complete_runtime_template_for_custom_models() {
+    let entries = collect_catalog_entries("custom-gateway-model", &HashMap::new(), "");
+    let catalog: serde_json::Value =
+        serde_json::from_str(&build_model_catalog_json(&entries, None)).unwrap();
+    let model = &catalog["models"][0];
+
+    assert_eq!(model["support_verbosity"], true);
+    assert!(model.get("truncation_policy").is_some());
+}
+
+#[test]
 fn build_catalog_json_uses_runtime_compatible_gpt56_metadata() {
     let entries = collect_catalog_entries(
         "gpt-5.6-sol\ngpt-5.6-terra\ngpt-5.6-luna",

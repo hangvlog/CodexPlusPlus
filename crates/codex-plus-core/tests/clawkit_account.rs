@@ -131,8 +131,8 @@ fn injection_bundle_contains_clawkit_account_entry() {
 
     assert!(script.contains("clawkit-account-entry"));
     assert!(script.contains("/clawkit/account/login"));
-    assert!(script.contains("/clawkit/account/socket-ticket"));
-    assert!(script.contains("/clawkit/remote/start"));
-    assert!(script.contains("/clawkit/remote/send"));
-    assert!(script.contains("/clawkit/remote/poll"));
+    assert!(script.contains("/clawkit/relay/start"));
+    assert!(script.contains("/clawkit/relay/status"));
+    assert!(script.contains("/clawkit/relay/stop"));
+    assert!(!script.contains("new WebSocket("));
 }
