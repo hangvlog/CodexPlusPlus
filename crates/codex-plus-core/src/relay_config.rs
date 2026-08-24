@@ -731,7 +731,10 @@ pub fn clear_relay_config_to_home_with_auth(
     };
     let config_path = home.join("config.toml");
     let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let mut without_tables = existing;
+    let mut without_tables = remove_table(
+        &existing,
+        &format!("model_providers.{RELAY_PROVIDER}"),
+    );
     for legacy_provider in LEGACY_RELAY_PROVIDERS {
         without_tables = remove_table(
             &without_tables,

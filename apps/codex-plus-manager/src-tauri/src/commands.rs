@@ -5974,7 +5974,7 @@ mod tests {
 
         let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
         let auth = std::fs::read_to_string(temp.path().join("auth.json")).unwrap();
-        assert!(!config.contains("model_provider"));
+        assert!(!config.contains("model_provider"), "{config}");
         assert!(!config.contains("model_providers.custom"));
         assert!(!auth.contains("OPENAI_API_KEY"));
         assert!(auth.contains("auth_mode"));
