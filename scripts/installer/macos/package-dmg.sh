@@ -154,5 +154,31 @@ verify_app "$STAGE/ClawKit Settings.app"
 
 ln -s /Applications "$STAGE/Applications"
 
-hdiutil create -volname "ClawKit Desktop" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+DMG_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-plus-plus-dmg.XXXXXX")"
+DMG_WORK_PATH="$DMG_WORK_DIR/$(basename "$DMG")"
+DMG_CREATED=false
+
+cleanup_dmg_work_dir() {
+  rm -f "$DMG_WORK_PATH"
+  rmdir "$DMG_WORK_DIR" 2>/dev/null || true
+}
+
+trap cleanup_dmg_work_dir EXIT
+
+for attempt in 1 2 3; do
+  if hdiutil create -volname "ClawKit Desktop" -srcfolder "$STAGE" -ov -format UDZO "$DMG_WORK_PATH"; then
+    mv "$DMG_WORK_PATH" "$DMG"
+    DMG_CREATED=true
+    break
+  fi
+
+  if [ "$attempt" -lt 3 ]; then
+    sleep "$((attempt * 2))"
+  fi
+done
+
+if [ "$DMG_CREATED" != true ]; then
+  echo "error: failed to create DMG after 3 attempts" >&2
+  exit 1
+fi
 echo "$DMG"
