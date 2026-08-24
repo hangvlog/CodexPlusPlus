@@ -6,6 +6,7 @@ members = [
   "apps/codex-plus-launcher",
   "apps/codex-plus-manager/src-tauri",
 ]
+exclude = ["vendor/cc-switch/src-tauri"]
 
 [workspace.package]
 version = "3.19.3"
