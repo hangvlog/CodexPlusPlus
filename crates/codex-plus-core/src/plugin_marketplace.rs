@@ -878,7 +878,7 @@ mod tests {
             format!(
                 r#"[marketplaces.openai-curated]
 source_type = "local"
-source = "{}"
+source = '{}'
 
 [marketplaces.openai-api-curated]
 source_type = "local"

@@ -724,6 +724,21 @@ pub fn clear_relay_config_to_home_with_auth(
     home: &Path,
     auth_contents: Option<&str>,
 ) -> anyhow::Result<RelayApplyResult> {
+    clear_relay_config_to_home_with_auth_options(home, auth_contents, false)
+}
+
+pub fn clear_managed_relay_config_to_home_with_auth(
+    home: &Path,
+    auth_contents: Option<&str>,
+) -> anyhow::Result<RelayApplyResult> {
+    clear_relay_config_to_home_with_auth_options(home, auth_contents, true)
+}
+
+fn clear_relay_config_to_home_with_auth_options(
+    home: &Path,
+    auth_contents: Option<&str>,
+    remove_managed_provider: bool,
+) -> anyhow::Result<RelayApplyResult> {
     std::fs::create_dir_all(home)?;
     let auth_bytes = match auth_contents {
         Some(contents) if !contents.trim().is_empty() => Some(contents.as_bytes().to_vec()),
@@ -731,7 +746,11 @@ pub fn clear_relay_config_to_home_with_auth(
     };
     let config_path = home.join("config.toml");
     let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let mut without_tables = existing;
+    let mut without_tables = if remove_managed_provider {
+        remove_table(&existing, &format!("model_providers.{RELAY_PROVIDER}"))
+    } else {
+        existing
+    };
     for legacy_provider in LEGACY_RELAY_PROVIDERS {
         without_tables = remove_table(
             &without_tables,

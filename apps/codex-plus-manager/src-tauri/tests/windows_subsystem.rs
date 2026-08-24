@@ -155,7 +155,7 @@ fn manager_launch_button_spawns_silent_launcher_binary() {
 }
 
 #[test]
-fn macos_packager_hides_silent_launcher_but_not_manager() {
+fn macos_packager_builds_integrated_clawkit_apps() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let packager = manifest_dir
         .parent()
@@ -168,12 +168,16 @@ fn macos_packager_hides_silent_launcher_but_not_manager() {
     assert!(script.contains("<key>LSUIElement</key>"));
     assert!(script.contains("ARCH=\"${2:-$(uname -m)}\""));
     assert!(script.contains("BINARY_DIR=\"${BINARY_DIR:-$ROOT/target/release}\""));
-    assert!(script.contains("CodexPlusPlus-${VERSION}-macos-${ARCH}.dmg"));
+    assert!(script.contains("CC_SWITCH_BINARY=\"${CC_SWITCH_BINARY:-}\""));
+    assert!(script.contains("ClawKit-${VERSION}-macos-${ARCH}.dmg"));
     assert!(script.contains(
-        "create_app \"Codex++\" \"CodexPlusPlus\" \"$BINARY_DIR/codex-plus-plus\" \"com.bigpizzav3.codexplusplus\" \"true\""
+        "create_app \"ClawKit Desktop\" \"ClawKitDesktop\" \"$CC_SWITCH_BINARY\" \"com.clawkit.desktop\" \"false\""
     ));
     assert!(script.contains(
-        "create_app \"Codex++ 管理工具\" \"CodexPlusPlusManager\" \"$BINARY_DIR/codex-plus-plus-manager\" \"com.bigpizzav3.codexplusplus.manager\" \"false\""
+        "create_app \"ClawKit Codex\" \"CodexPlusPlus\" \"$BINARY_DIR/codex-plus-plus\" \"com.hang.clawkit.codex\" \"true\""
+    ));
+    assert!(script.contains(
+        "create_app \"ClawKit Settings\" \"CodexPlusPlusManager\" \"$BINARY_DIR/codex-plus-plus-manager\" \"com.hang.clawkit.settings\" \"false\""
     ));
 }
 

@@ -7,7 +7,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DIST="$ROOT/dist/macos"
 STAGE="$DIST/stage"
 BINARY_DIR="${BINARY_DIR:-$ROOT/target/release}"
-DMG="$DIST/CodexPlusPlus-${VERSION}-macos-${ARCH}.dmg"
+CC_SWITCH_BINARY="${CC_SWITCH_BINARY:-}"
+DMG="$DIST/ClawKit-${VERSION}-macos-${ARCH}.dmg"
 ICON_SOURCE="$ROOT/apps/codex-plus-manager/src-tauri/icons/icon.png"
 ICON_NAME="codex-plus-plus.icns"
 ICON_ICNS="$DIST/$ICON_NAME"
@@ -59,9 +60,10 @@ create_app() {
   <array>
     <dict>
       <key>CFBundleURLName</key>
-      <string>Codex++ Links</string>
+      <string>ClawKit Links</string>
       <key>CFBundleURLSchemes</key>
       <array>
+        <string>clawkit</string>
         <string>codexplusplus</string>
         <string>dreamskin</string>
       </array>
@@ -134,14 +136,21 @@ verify_app() {
 }
 
 prepare_icon
-create_app "Codex++" "CodexPlusPlus" "$BINARY_DIR/codex-plus-plus" "com.bigpizzav3.codexplusplus" "true"
-create_app "Codex++ 管理工具" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.bigpizzav3.codexplusplus.manager" "false"
+if [ -z "$CC_SWITCH_BINARY" ]; then
+  echo "error: CC_SWITCH_BINARY is required for the integrated ClawKit Desktop package" >&2
+  exit 1
+fi
+create_app "ClawKit Desktop" "ClawKitDesktop" "$CC_SWITCH_BINARY" "com.clawkit.desktop" "false"
+create_app "ClawKit Codex" "CodexPlusPlus" "$BINARY_DIR/codex-plus-plus" "com.hang.clawkit.codex" "true"
+create_app "ClawKit Settings" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.hang.clawkit.settings" "false"
 
-sign_app "$STAGE/Codex++.app"
-sign_app "$STAGE/Codex++ 管理工具.app"
+sign_app "$STAGE/ClawKit Desktop.app"
+sign_app "$STAGE/ClawKit Codex.app"
+sign_app "$STAGE/ClawKit Settings.app"
 
-verify_app "$STAGE/Codex++.app"
-verify_app "$STAGE/Codex++ 管理工具.app"
+verify_app "$STAGE/ClawKit Desktop.app"
+verify_app "$STAGE/ClawKit Codex.app"
+verify_app "$STAGE/ClawKit Settings.app"
 
 ln -s /Applications "$STAGE/Applications"
 
@@ -157,7 +166,7 @@ cleanup_dmg_work_dir() {
 trap cleanup_dmg_work_dir EXIT
 
 for attempt in 1 2 3; do
-  if hdiutil create -volname "Codex++" -srcfolder "$STAGE" -ov -format UDZO "$DMG_WORK_PATH"; then
+  if hdiutil create -volname "ClawKit Desktop" -srcfolder "$STAGE" -ov -format UDZO "$DMG_WORK_PATH"; then
     mv "$DMG_WORK_PATH" "$DMG"
     DMG_CREATED=true
     break
@@ -172,5 +181,4 @@ if [ "$DMG_CREATED" != true ]; then
   echo "error: failed to create DMG after 3 attempts" >&2
   exit 1
 fi
-
 echo "$DMG"

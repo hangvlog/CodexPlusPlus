@@ -722,7 +722,9 @@ type UpdateResult = CommandResult<{
   releaseSummary?: string;
   assetName?: string | null;
   assetUrl?: string | null;
+  assetSha256?: string | null;
   updateAvailable?: boolean;
+  mandatory?: boolean;
   installedPath?: string;
   progress?: number;
 }>;
@@ -2154,7 +2156,7 @@ export function App() {
     if (result) {
       setUpdate(result);
       if (!silent || result.updateAvailable) {
-        showNotice(t("GitHub Release 检查"), result.message, result.status);
+        showNotice(t("ClawKit 更新检查"), result.message, result.status);
       }
     }
   };
@@ -2169,6 +2171,7 @@ export function App() {
             body: update.releaseSummary ?? "",
             asset_name: update.assetName,
             asset_url: update.assetUrl,
+            asset_sha256: update.assetSha256,
           }
         : null;
     setUpdateInstallProgress({
@@ -2191,7 +2194,7 @@ export function App() {
                 : Math.min(99, current.percent + 0.2);
         const message =
           elapsedSeconds < 3
-            ? t("正在获取 GitHub Release 信息…")
+            ? t("正在获取 ClawKit 版本信息…")
             : elapsedSeconds < 15
               ? t("正在下载安装包…")
               : elapsedSeconds < 45
@@ -2791,7 +2794,7 @@ export function App() {
         showLabel: "Show window",
         applySkinLabel: "Apply Dream Skin",
         quitLabel: "Quit",
-        windowTitle: "Codex++ Manager",
+        windowTitle: "ClawKit Settings",
       });
     }
   }, []);
@@ -3135,7 +3138,7 @@ export function App() {
         <div className="brand">
           <div className="brand-copy">
             <div className="brand-title-row">
-              <div className="brand-title">Codex++</div>
+              <div className="brand-title">ClawKit</div>
               {hasUpdate ? (
                 <button
                   className="update-dot"
@@ -6199,12 +6202,12 @@ function AboutScreen({
   return (
     <>
       <Panel>
-        <CardHead title={t("关于 Codex++")} detail={t("本地 Codex 增强、管理工具和安装包维护")} />
+        <CardHead title={t("关于 ClawKit Desktop")} detail={t("本地 Codex 增强、远程控制和安装包维护")} />
         <CardContent>
           <div className="metric-list">
-            <Metric label={t("Codex++ 版本")} value={overview?.current_version ?? update?.currentVersion ?? "-"} />
+            <Metric label={t("ClawKit Desktop 版本")} value={overview?.current_version ?? update?.currentVersion ?? "-"} />
             <Metric label={t("Codex 版本")} value={overview?.codex_version ?? t("未检测到")} />
-            <Metric label={t("项目地址")} value="github.com/BigPizzaV3/CodexPlusPlus" />
+            <Metric label={t("项目地址")} value="github.com/hangvlog/CodexPlusPlus" />
           </div>
           <Toolbar>
             <Button onClick={() => void actions.openExternalUrl("https://github.com/BigPizzaV3/CodexPlusPlus")} variant="secondary">
@@ -6227,19 +6230,24 @@ function AboutScreen({
         </CardContent>
       </Panel>
       <Panel>
-        <CardHead title={t("GitHub Release 更新")} detail={tf("当前版本 {0}", [overview?.current_version ?? update?.currentVersion ?? "-"])} />
+        <CardHead title={t("ClawKit 应用更新")} detail={tf("当前版本 {0}", [overview?.current_version ?? update?.currentVersion ?? "-"])} />
         <CardContent>
           <div className="metric-list">
             <Metric label={t("状态")} value={update?.status ?? "not_checked"} />
             <Metric label={t("最新版本")} value={update?.latestVersion ?? t("未检查")} />
             <Metric label={t("资源")} value={update?.assetName ?? "-"} />
+            <Metric label={t("更新策略")} value={update?.mandatory ? t("必须更新") : t("普通更新")} />
             <Metric label={t("进度")} value={`${formatProgressPercent(update?.progress ?? 0)}%`} />
           </div>
-          <Textarea className="log-view" readOnly value={update?.releaseSummary || update?.message || t("尚未检查 GitHub Release；更新会下载并启动安装包。")} />
+          <Textarea className="log-view" readOnly value={update?.releaseSummary || update?.message || t("尚未检查更新；新版本会从 ClawKit 发布服务下载并校验安装包。")} />
           <TaskProgressBox completedTitle={t("上次更新结果")} progress={updateInstallProgress} title={t("安装包更新进度")} />
           <Toolbar>
             <Button onClick={() => void actions.checkUpdate()}>{t("检查更新")}</Button>
-            <Button disabled={updateInstallProgress.active} variant="secondary" onClick={() => void actions.performUpdate()}>
+            <Button
+              disabled={updateInstallProgress.active || !update?.updateAvailable || !update?.assetUrl}
+              variant="secondary"
+              onClick={() => void actions.performUpdate()}
+            >
               {updateInstallProgress.active ? t("正在下载安装包…") : t("下载并运行安装包")}
             </Button>
           </Toolbar>

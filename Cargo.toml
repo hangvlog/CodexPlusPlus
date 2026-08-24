@@ -6,12 +6,13 @@ members = [
   "apps/codex-plus-launcher",
   "apps/codex-plus-manager/src-tauri",
 ]
+exclude = ["vendor/cc-switch/src-tauri"]
 
 [workspace.package]
-version = "1.2.52"
+version = "3.19.3"
 edition = "2024"
 license = "AGPL-3.0-only"
-repository = "https://github.com/BigPizzaV3/CodexPlusPlus"
+repository = "https://github.com/hangvlog/CodexPlusPlus"
 
 [workspace.dependencies]
 aes-gcm = "0.10"

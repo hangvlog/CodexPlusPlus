@@ -188,6 +188,49 @@ pub async fn handle_bridge_request(
             ctx.runtime.backend_status().await,
             ctx.settings.get_settings().await,
         ),
+        "/clawkit/account/status" => {
+            Ok(crate::clawkit_account::ClawkitAccountClient::default().status())
+        }
+        "/clawkit/account/login" => {
+            let username = payload
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let password = payload
+                .get("password")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            crate::clawkit_account::ClawkitAccountClient::default()
+                .login(username, password)
+                .await
+        }
+        "/clawkit/account/logout" => {
+            crate::clawkit_account::ClawkitAccountClient::default().logout()
+        }
+        "/clawkit/account/socket-ticket" => {
+            crate::clawkit_account::ClawkitAccountClient::default()
+                .create_socket_ticket()
+                .await
+        }
+        "/clawkit/gateway/status" => {
+            crate::clawkit_gateway::ClawkitGatewayClient::default()
+                .status()
+                .await
+        }
+        "/clawkit/relay/status" => crate::clawkit_relay::status(),
+        "/clawkit/relay/start" => crate::clawkit_relay::start().await,
+        "/clawkit/relay/stop" => crate::clawkit_relay::stop(),
+        "/clawkit/remote/status" => crate::clawkit_remote::status(),
+        "/clawkit/remote/start" => crate::clawkit_remote::start().await,
+        "/clawkit/remote/send" => {
+            let message = payload
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            crate::clawkit_remote::send(message)
+        }
+        "/clawkit/remote/poll" => crate::clawkit_remote::poll(),
+        "/clawkit/remote/stop" => crate::clawkit_remote::stop(),
         "/codex-model-catalog" | "/codex-config-model" => ctx.runtime.codex_model_catalog().await,
         "/diagnostics/log" => diagnostic_log_value(payload.clone()),
         "/llm-proxy" => llm_proxy_value(payload.clone()).await,

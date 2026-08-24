@@ -21,12 +21,12 @@ Thumbs.db
 .env
 tools/codex-wechat/config.local.json
 
-# pnpm artifacts (project uses npm)
+# pnpm artifacts
 pnpm-lock.yaml
 pnpm-workspace.yaml
+!apps/codex-plus-manager/pnpm-lock.yaml
 
 # project-specific
 .trae/
 plan.md
 plan_v2.md
-

@@ -1,6 +1,7 @@
 use codex_plus_core::update::{
     Release, download_asset_to, is_newer_version, parse_version_tag, release_from_github_payload,
-    release_from_latest_json_payload, safe_asset_name, select_update_asset,
+    release_from_latest_json_payload, release_from_update_manifest_payload, safe_asset_name,
+    select_update_asset, update_manifest_url, verify_release_asset,
 };
 use serde_json::json;
 
@@ -78,6 +79,43 @@ fn latest_json_payload_selects_platform_installer_without_github_api_shape() {
     } else {
         assert_eq!(release.asset_name.as_deref(), None);
     }
+}
+
+#[test]
+fn unified_manifest_payload_parses_clawkit_artifact_and_checksum() {
+    let release = release_from_update_manifest_payload(&json!({
+        "code": 200,
+        "data": {
+            "has_update": true,
+            "mandatory": false,
+            "latest": {"version": "1.3.0", "notes": ["修复连接", "改进更新"]},
+            "artifact": {
+                "filename": "ClawKit-1.3.0-macos-arm64.dmg",
+                "url": "https://download.example/ClawKit.dmg",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(release.version, "1.3.0");
+    assert_eq!(release.body, "- 修复连接\n- 改进更新");
+    assert_eq!(
+        release.asset_name.as_deref(),
+        Some("ClawKit-1.3.0-macos-arm64.dmg")
+    );
+    assert_eq!(
+        release.asset_sha256.as_deref(),
+        Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    );
+}
+
+#[test]
+fn unified_manifest_url_contains_platform_and_product() {
+    let url = update_manifest_url("https://clawkit.example/", "1.2.3").unwrap();
+    assert!(url.starts_with("https://clawkit.example/api/releases/clawkit-desktop/update?"));
+    assert!(url.contains("current_version=1.2.3"));
+    assert!(url.contains("channel=stable"));
 }
 
 #[test]
@@ -162,10 +200,28 @@ fn download_asset_to_writes_bytes() {
         body: "fixes".to_string(),
         asset_name: Some("pkg.zip".to_string()),
         asset_url: Some("https://example.test/pkg.zip".to_string()),
+        asset_sha256: None,
     };
 
     let path = download_asset_to(&release, b"abcdef", dir.path()).unwrap();
 
     assert_eq!(path, dir.path().join("pkg.zip"));
     assert_eq!(std::fs::read(path).unwrap(), b"abcdef");
+}
+
+#[test]
+fn release_checksum_rejects_modified_installer() {
+    let release = Release {
+        version: "1.0.0".to_string(),
+        url: String::new(),
+        body: String::new(),
+        asset_name: Some("ClawKit.dmg".to_string()),
+        asset_url: Some("https://example.test/ClawKit.dmg".to_string()),
+        asset_sha256: Some(
+            "bef57ec7f53a6d40beb640a780a639c83bc29ac8a9816f1fc6c5c6dcd93c4721".to_string(),
+        ),
+    };
+
+    verify_release_asset(&release, b"abcdef").unwrap();
+    assert!(verify_release_asset(&release, b"tampered").is_err());
 }

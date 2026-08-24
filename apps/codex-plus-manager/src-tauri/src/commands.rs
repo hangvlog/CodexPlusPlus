@@ -758,7 +758,7 @@ fn sync_active_relay_to_home(
     {
         let auth_contents =
             (!relay.auth_contents.trim().is_empty()).then_some(relay.auth_contents.as_str());
-        return codex_plus_core::relay_config::clear_relay_config_to_home_with_auth(
+        return codex_plus_core::relay_config::clear_managed_relay_config_to_home_with_auth(
             home,
             auth_contents,
         );
@@ -3464,7 +3464,9 @@ pub async fn check_update() -> CommandResult<Value> {
                     "releaseSummary": update.release_summary,
                     "assetName": update.asset_name,
                     "assetUrl": update.asset_url,
+                    "assetSha256": update.asset_sha256,
                     "updateAvailable": update.update_available,
+                    "mandatory": update.mandatory,
                     "progress": 0
                 }),
             }
@@ -3477,7 +3479,9 @@ pub async fn check_update() -> CommandResult<Value> {
                 "releaseSummary": "",
                 "assetName": Value::Null,
                 "assetUrl": Value::Null,
+                "assetSha256": Value::Null,
                 "updateAvailable": false,
+                "mandatory": false,
                 "progress": 0
             }),
         ),
@@ -5970,7 +5974,7 @@ mod tests {
 
         let config = std::fs::read_to_string(temp.path().join("config.toml")).unwrap();
         let auth = std::fs::read_to_string(temp.path().join("auth.json")).unwrap();
-        assert!(!config.contains("model_provider"));
+        assert!(!config.contains("model_provider"), "{config}");
         assert!(!config.contains("model_providers.custom"));
         assert!(!auth.contains("OPENAI_API_KEY"));
         assert!(auth.contains("auth_mode"));
