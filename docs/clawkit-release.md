@@ -25,3 +25,10 @@ sign in once and never paste a gateway URL or API key.
 The ClawKit release version is shared by the CC Switch shell and this fork so a freshly
 installed bundle does not immediately report itself as older than the backend manifest.
 The complete AGPL-3.0 source remains available at `github.com/hangvlog/CodexPlusPlus`.
+
+The ClawKit Desktop shell must be built through `pnpm tauri build --no-bundle` (with the
+matching `--target` on macOS). A plain `cargo build` can produce a runnable Tauri executable
+whose WebView opens `about:blank` because the renderer asset metadata was not supplied by the
+Tauri CLI. Both PR and release workflows run `scripts/installer/verify-tauri-frontend.py`
+before packaging and fail unless the hashed JavaScript and CSS paths from `dist/index.html`
+are embedded in the desktop executable.

@@ -60,10 +60,6 @@ jobs:
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
 
-      - name: Build ClawKit Desktop frontend
-        working-directory: vendor/cc-switch
-        run: pnpm build:renderer
-
       - name: Rust tests
         run: cargo test --workspace
 
@@ -71,7 +67,11 @@ jobs:
         run: cargo build --release
 
       - name: Build ClawKit Desktop shell
-        run: cargo build --release --manifest-path vendor/cc-switch/src-tauri/Cargo.toml
+        working-directory: vendor/cc-switch
+        run: pnpm tauri build --no-bundle
+
+      - name: Verify ClawKit Desktop embedded frontend
+        run: python scripts/installer/verify-tauri-frontend.py vendor/cc-switch/dist/index.html vendor/cc-switch/src-tauri/target/release/cc-switch.exe
 
       - name: Stage Windows app files
         shell: pwsh
@@ -177,15 +177,15 @@ jobs:
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
 
-      - name: Build ClawKit Desktop frontend
-        working-directory: vendor/cc-switch
-        run: pnpm build:renderer
-
       - name: Build release binaries
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Build ClawKit Desktop shell
-        run: cargo build --release --target ${{ matrix.target }} --manifest-path vendor/cc-switch/src-tauri/Cargo.toml
+        working-directory: vendor/cc-switch
+        run: pnpm tauri build --target ${{ matrix.target }} --no-bundle
+
+      - name: Verify ClawKit Desktop embedded frontend
+        run: python3 scripts/installer/verify-tauri-frontend.py vendor/cc-switch/dist/index.html vendor/cc-switch/src-tauri/target/${{ matrix.target }}/release/cc-switch
 
       - name: Build macOS DMG
         run: |
