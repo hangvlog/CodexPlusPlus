@@ -758,7 +758,7 @@ fn sync_active_relay_to_home(
     {
         let auth_contents =
             (!relay.auth_contents.trim().is_empty()).then_some(relay.auth_contents.as_str());
-        return codex_plus_core::relay_config::clear_relay_config_to_home_with_auth(
+        return codex_plus_core::relay_config::clear_managed_relay_config_to_home_with_auth(
             home,
             auth_contents,
         );
