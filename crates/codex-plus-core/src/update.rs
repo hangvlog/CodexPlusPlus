@@ -3,10 +3,11 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
-pub const DEFAULT_REPOSITORY: &str = "BigPizzaV3/CodexPlusPlus";
-pub const DEFAULT_LATEST_JSON_URL: &str =
-    "https://github.com/BigPizzaV3/CodexPlusPlus/releases/latest/download/latest.json";
+pub const DEFAULT_UPDATE_API_BASE: &str = "https://clawkit.chat";
+pub const UPDATE_API_ENV: &str = "CLAWKIT_UPDATE_API_URL";
+pub const UPDATE_PRODUCT: &str = "clawkit-desktop";
 const UPDATE_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const UPDATE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -23,6 +24,8 @@ pub struct Release {
     pub body: String,
     pub asset_name: Option<String>,
     pub asset_url: Option<String>,
+    #[serde(default)]
+    pub asset_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -32,7 +35,9 @@ pub struct UpdateCheck {
     pub release_summary: String,
     pub asset_name: Option<String>,
     pub asset_url: Option<String>,
+    pub asset_sha256: Option<String>,
     pub update_available: bool,
+    pub mandatory: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -103,6 +108,7 @@ pub fn release_from_github_payload(payload: &Value) -> anyhow::Result<Release> {
             .to_string(),
         asset_name: selected.as_ref().map(|asset| asset.name.clone()),
         asset_url: selected.map(|asset| asset.browser_download_url),
+        asset_sha256: None,
     })
 }
 
@@ -146,7 +152,98 @@ pub fn release_from_latest_json_payload(payload: &Value) -> anyhow::Result<Relea
             .to_string(),
         asset_name: selected.as_ref().map(|asset| asset.name.clone()),
         asset_url: selected.map(|asset| asset.browser_download_url),
+        asset_sha256: None,
     })
+}
+
+pub fn release_from_update_manifest_payload(payload: &Value) -> anyhow::Result<Release> {
+    let data = payload.get("data").unwrap_or(payload);
+    let latest = data
+        .get("latest")
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| anyhow::anyhow!("更新清单中没有可用版本"))?;
+    let artifact = data
+        .get("artifact")
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| anyhow::anyhow!("更新清单中没有当前平台安装包"))?;
+    let notes = latest
+        .get("notes")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|item| format!("- {item}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+    Ok(Release {
+        version: latest
+            .get("version")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow::anyhow!("更新清单缺少 latest.version"))?
+            .to_string(),
+        url: artifact
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        body: notes,
+        asset_name: artifact
+            .get("filename")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
+        asset_url: artifact
+            .get("url")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
+        asset_sha256: artifact
+            .get("sha256")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(ToString::to_string),
+    })
+}
+
+pub fn update_api_base() -> String {
+    std::env::var(UPDATE_API_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| option_env!("CLAWKIT_UPDATE_API_URL").map(ToString::to_string))
+        .unwrap_or_else(|| DEFAULT_UPDATE_API_BASE.to_string())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn update_platform() -> (&'static str, &'static str) {
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "linux"
+    };
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
+    };
+    (platform, arch)
+}
+
+pub fn update_manifest_url(base_url: &str, current_version: &str) -> anyhow::Result<String> {
+    let (platform, arch) = update_platform();
+    let mut url = reqwest::Url::parse(&format!(
+        "{}/api/releases/{UPDATE_PRODUCT}/update",
+        base_url.trim_end_matches('/')
+    ))?;
+    url.query_pairs_mut()
+        .append_pair("current_version", current_version)
+        .append_pair("platform", platform)
+        .append_pair("arch", arch)
+        .append_pair("channel", "stable");
+    Ok(url.to_string())
 }
 
 pub fn select_update_asset(assets: &[(String, String)]) -> Option<ReleaseAsset> {
@@ -183,15 +280,41 @@ pub async fn fetch_latest_release(latest_json_url: &str) -> anyhow::Result<Relea
 }
 
 pub async fn check_for_update(current_version: &str) -> anyhow::Result<UpdateCheck> {
-    let release = fetch_latest_release(DEFAULT_LATEST_JSON_URL).await?;
-    let update_available = is_newer_version(&release.version, current_version)?;
+    let endpoint = update_manifest_url(&update_api_base(), current_version)?;
+    let payload = update_http_client()?
+        .get(endpoint)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<Value>()
+        .await?;
+    let data = payload.get("data").unwrap_or(&payload);
+    let update_available = data
+        .get("has_update")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mandatory = data
+        .get("mandatory")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let release = match release_from_update_manifest_payload(&payload) {
+        Ok(release) => Some(release),
+        Err(_) if !update_available => None,
+        Err(error) => return Err(error),
+    };
     Ok(UpdateCheck {
         current_version: current_version.to_string(),
-        latest_version: Some(release.version),
-        release_summary: release.body,
-        asset_name: release.asset_name,
-        asset_url: release.asset_url,
+        latest_version: release.as_ref().map(|item| item.version.clone()),
+        release_summary: release
+            .as_ref()
+            .map(|item| item.body.clone())
+            .unwrap_or_default(),
+        asset_name: release.as_ref().and_then(|item| item.asset_name.clone()),
+        asset_url: release.as_ref().and_then(|item| item.asset_url.clone()),
+        asset_sha256: release.and_then(|item| item.asset_sha256),
         update_available,
+        mandatory,
     })
 }
 
@@ -250,6 +373,7 @@ pub async fn perform_update(
             "bytes": bytes.len()
         }),
     );
+    verify_release_asset(release, &bytes)?;
     let installer_path = match download_asset_to(release, &bytes, download_dir) {
         Ok(path) => path,
         Err(error) => {
@@ -304,10 +428,29 @@ pub async fn perform_update(
 
 fn update_http_client() -> anyhow::Result<reqwest::Client> {
     Ok(reqwest::Client::builder()
-        .user_agent(format!("Codex++/{}", crate::version::VERSION))
+        .user_agent(format!("ClawKit-Desktop/{}", crate::version::VERSION))
         .connect_timeout(UPDATE_CONNECT_TIMEOUT)
         .timeout(UPDATE_DOWNLOAD_TIMEOUT)
         .build()?)
+}
+
+pub fn verify_release_asset(release: &Release, bytes: &[u8]) -> anyhow::Result<()> {
+    let Some(expected) = release
+        .asset_sha256
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    if expected.len() != 64 || !expected.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        anyhow::bail!("更新清单中的 SHA-256 格式无效");
+    }
+    let actual = format!("{:x}", Sha256::digest(bytes));
+    if !actual.eq_ignore_ascii_case(expected) {
+        anyhow::bail!("安装包 SHA-256 校验失败，已停止更新");
+    }
+    Ok(())
 }
 
 pub fn download_asset_to(
@@ -392,8 +535,7 @@ fn is_macos_native_arch_asset(name: &str) -> bool {
 }
 
 fn is_windows_installer_asset(name: &str) -> bool {
-    name.contains("codex")
-        && name.contains("plus")
+    (name.contains("clawkit") || (name.contains("codex") && name.contains("plus")))
         && (name.ends_with(".msi")
             || name.ends_with("-setup.exe")
             || name.ends_with("_setup.exe")
@@ -404,7 +546,8 @@ fn is_windows_installer_asset(name: &str) -> bool {
 fn is_macos_installer_asset(name: &str) -> bool {
     // Loose shape check; arch preference is handled by platform_asset_rank
     // via is_macos_native_arch_asset.
-    name.contains("codex") && name.contains("plus") && name.ends_with(".dmg")
+    (name.contains("clawkit") || (name.contains("codex") && name.contains("plus")))
+        && name.ends_with(".dmg")
 }
 
 pub fn launch_installer(path: &Path) -> anyhow::Result<()> {

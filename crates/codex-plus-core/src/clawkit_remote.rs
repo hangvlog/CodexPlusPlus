@@ -169,7 +169,7 @@ pub async fn start() -> anyhow::Result<Value> {
 }
 
 fn preferred_default_model(models: &[String]) -> Option<&str> {
-    const PREFERRED: &[&str] = &["gpt-5.6", "gpt-5.5", "gpt-5.4", "gpt-5.2"];
+    const PREFERRED: &[&str] = &["gpt-5.6-sol", "gpt-5.6", "gpt-5.5", "gpt-5.4", "gpt-5.2"];
     PREFERRED
         .iter()
         .find_map(|preferred| models.iter().find(|model| model.as_str() == *preferred))
@@ -269,6 +269,10 @@ mod tests {
         assert_eq!(
             preferred_default_model(&["claude-sonnet".into(), "gpt-5.5".into()]),
             Some("gpt-5.5")
+        );
+        assert_eq!(
+            preferred_default_model(&["gpt-5.6".into(), "gpt-5.6-sol".into(), "gpt-5.5".into()]),
+            Some("gpt-5.6-sol")
         );
     }
 }
