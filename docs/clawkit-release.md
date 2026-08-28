@@ -8,7 +8,9 @@ distribution are branded as ClawKit Desktop.
 - Default update API: `https://clawkit.chat`
 - Runtime/build override: `CLAWKIT_UPDATE_API_URL`
 - Windows bundle: `clawkit-desktop.exe`, `codex-plus-plus.exe`, and the settings manager
-- macOS bundles: `ClawKit Desktop.app`, `ClawKit Codex.app`, `ClawKit Settings.app`
+- macOS user-facing bundles: `ClawKit Desktop.app`, `ClawKit Settings.app`
+- Codex helper: internal executable bundled inside `ClawKit Desktop.app`; it never gets a separate
+  Desktop/Dock/Start Menu entry and never changes the official Codex icon or package metadata.
 - Windows installer: `ClawKit-{version}-windows-x64-setup.exe`
 - macOS installers: `ClawKit-{version}-macos-{x64|arm64}.dmg`
 
@@ -18,7 +20,8 @@ computes SHA-256 while uploading. The desktop updater rejects a downloaded insta
 digest does not match the update manifest.
 
 The public installer is an integrated package: the CC Switch-derived shell is the main
-`ClawKit Desktop` entry, while the Codex++ launcher and manager are installed alongside it.
+`ClawKit Desktop` entry, while the Codex++ launcher remains an internal helper and the optional
+settings manager is installed alongside it. No separate Codex-branded replacement is exposed.
 Both layers read the same `~/.codex-session-delete/clawkit-account.json` session, so users
 sign in once and never paste a gateway URL or API key.
 

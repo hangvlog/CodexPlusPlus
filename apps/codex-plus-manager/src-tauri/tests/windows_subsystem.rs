@@ -127,6 +127,24 @@ fn windows_binaries_run_as_invoker_without_administrator_privileges() {
 }
 
 #[test]
+fn windows_installer_keeps_codex_helper_internal() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let installer = manifest_dir
+        .parent()
+        .and_then(std::path::Path::parent)
+        .and_then(std::path::Path::parent)
+        .unwrap()
+        .join("scripts/installer/windows/CodexPlusPlus.nsi");
+    let script = std::fs::read_to_string(installer).expect("read windows installer");
+
+    assert!(!script.lines().any(|line| {
+        line.trim_start().starts_with("CreateShortcut") && line.contains("ClawKit Codex.lnk")
+    }));
+    assert!(script.contains("Delete \"$DESKTOP\\ClawKit Codex.lnk\""));
+    assert!(script.contains("Delete \"$SMPROGRAMS\\ClawKit\\ClawKit Codex.lnk\""));
+}
+
+#[test]
 fn windows_entrypoints_register_codexplusplus_url_protocol() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let windows_install = manifest_dir
@@ -155,7 +173,7 @@ fn manager_launch_button_spawns_silent_launcher_binary() {
 }
 
 #[test]
-fn macos_packager_builds_integrated_clawkit_apps() {
+fn macos_packager_keeps_codex_helper_internal() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let packager = manifest_dir
         .parent()
@@ -173,8 +191,9 @@ fn macos_packager_builds_integrated_clawkit_apps() {
     assert!(script.contains(
         "create_app \"ClawKit Desktop\" \"ClawKitDesktop\" \"$CC_SWITCH_BINARY\" \"com.clawkit.desktop\" \"false\""
     ));
+    assert!(!script.contains("create_app \"ClawKit Codex\""));
     assert!(script.contains(
-        "create_app \"ClawKit Codex\" \"CodexPlusPlus\" \"$BINARY_DIR/codex-plus-plus\" \"com.hang.clawkit.codex\" \"true\""
+        "cp \"$BINARY_DIR/codex-plus-plus\" \"$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus\""
     ));
     assert!(script.contains(
         "create_app \"ClawKit Settings\" \"CodexPlusPlusManager\" \"$BINARY_DIR/codex-plus-plus-manager\" \"com.hang.clawkit.settings\" \"false\""

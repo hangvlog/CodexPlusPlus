@@ -183,7 +183,9 @@ jobs:
           set -euo pipefail
           test -L "dist/macos/stage/Applications"
           test "$(readlink "dist/macos/stage/Applications")" = "/Applications"
-          for app in "dist/macos/stage/ClawKit Desktop.app" "dist/macos/stage/ClawKit Codex.app" "dist/macos/stage/ClawKit Settings.app"; do
+          test -x "dist/macos/stage/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
+          test ! -e "dist/macos/stage/ClawKit Codex.app"
+          for app in "dist/macos/stage/ClawKit Desktop.app" "dist/macos/stage/ClawKit Settings.app"; do
             test -f "$app/Contents/Info.plist"
             test -f "$app/Contents/PkgInfo"
             test -x "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"

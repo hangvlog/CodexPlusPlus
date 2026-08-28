@@ -39,14 +39,16 @@ Section "Install"
   File "${ROOT}\dist\windows\app\codex-plus-plus.exe"
   File "${ROOT}\dist\windows\app\codex-plus-plus-manager.exe"
 
+  ; Remove legacy helper shortcuts. The helper stays internal and must never
+  ; present itself as a replacement for the official Codex application.
+  Delete "$DESKTOP\ClawKit Codex.lnk"
+  Delete "$SMPROGRAMS\ClawKit\ClawKit Codex.lnk"
   Delete "$DESKTOP\Codex++ 绠＄悊宸ュ叿.lnk"
   Delete "$SMPROGRAMS\Codex++\Codex++ 绠＄悊宸ュ叿.lnk"
 
   CreateShortcut "$DESKTOP\ClawKit Desktop.lnk" "$INSTDIR\clawkit-desktop.exe" "" "$INSTDIR\clawkit-desktop.exe"
-  CreateShortcut "$DESKTOP\ClawKit Codex.lnk" "$INSTDIR\codex-plus-plus.exe" "" "$INSTDIR\codex-plus-plus.exe"
   CreateDirectory "$SMPROGRAMS\ClawKit"
   CreateShortcut "$SMPROGRAMS\ClawKit\ClawKit Desktop.lnk" "$INSTDIR\clawkit-desktop.exe" "" "$INSTDIR\clawkit-desktop.exe"
-  CreateShortcut "$SMPROGRAMS\ClawKit\ClawKit Codex.lnk" "$INSTDIR\codex-plus-plus.exe" "" "$INSTDIR\codex-plus-plus.exe"
   CreateShortcut "$SMPROGRAMS\ClawKit\ClawKit Settings.lnk" "$INSTDIR\codex-plus-plus-manager.exe" "" "$INSTDIR\codex-plus-plus-manager.exe"
   CreateShortcut "$SMPROGRAMS\ClawKit\卸载 ClawKit.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\codex-plus-plus-manager.exe"
 

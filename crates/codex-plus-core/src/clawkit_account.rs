@@ -99,15 +99,12 @@ impl ClawkitAccountClient {
             .ok()
             .map(|session| session.device_id)
             .unwrap_or_else(|| format!("clawkit-codex-{}", Uuid::new_v4()));
+        let (endpoint, payload) =
+            login_request(&self.account_api_base, username, password, &device_id);
         let response = self
             .client
-            .post(format!("{}/auth/login", self.account_api_base))
-            .json(&json!({
-                "username": username,
-                "password": password,
-                "device_id": device_id,
-                "product": PRODUCT,
-            }))
+            .post(endpoint)
+            .json(&payload)
             .send()
             .await
             .context("无法连接 ClawKit 账号服务")?;
@@ -220,6 +217,37 @@ impl ClawkitAccountClient {
         restrict_session_permissions(&self.session_path)?;
         Ok(())
     }
+}
+
+fn login_request(api_base: &str, login: &str, password: &str, device_id: &str) -> (String, Value) {
+    if is_mainland_phone(login) {
+        return (
+            format!("{api_base}/api/auth/phone/login"),
+            json!({
+                "phone": login,
+                "password": password,
+                "device_id": device_id,
+                "product": PRODUCT,
+            }),
+        );
+    }
+    (
+        format!("{api_base}/auth/login"),
+        json!({
+            "username": login,
+            "password": password,
+            "device_id": device_id,
+            "product": PRODUCT,
+        }),
+    )
+}
+
+fn is_mainland_phone(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 11
+        && bytes[0] == b'1'
+        && matches!(bytes[1], b'3'..=b'9')
+        && bytes.iter().all(u8::is_ascii_digit)
 }
 
 fn normalize_api_base(value: &str) -> anyhow::Result<String> {

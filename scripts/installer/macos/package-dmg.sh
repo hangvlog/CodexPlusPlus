@@ -141,15 +141,14 @@ if [ -z "$CC_SWITCH_BINARY" ]; then
   exit 1
 fi
 create_app "ClawKit Desktop" "ClawKitDesktop" "$CC_SWITCH_BINARY" "com.clawkit.desktop" "false"
-create_app "ClawKit Codex" "CodexPlusPlus" "$BINARY_DIR/codex-plus-plus" "com.hang.clawkit.codex" "true"
 create_app "ClawKit Settings" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.hang.clawkit.settings" "false"
+cp "$BINARY_DIR/codex-plus-plus" "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
+chmod +x "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
 
 sign_app "$STAGE/ClawKit Desktop.app"
-sign_app "$STAGE/ClawKit Codex.app"
 sign_app "$STAGE/ClawKit Settings.app"
 
 verify_app "$STAGE/ClawKit Desktop.app"
-verify_app "$STAGE/ClawKit Codex.app"
 verify_app "$STAGE/ClawKit Settings.app"
 
 ln -s /Applications "$STAGE/Applications"

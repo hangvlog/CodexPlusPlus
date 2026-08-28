@@ -100,6 +100,49 @@ async fn failed_login_does_not_create_a_session_file() {
     assert!(!session_path.exists());
 }
 
+#[tokio::test]
+async fn phone_login_uses_the_phone_password_endpoint() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/auth/phone/login"))
+        .and(body_json(json!({
+            "phone": "13812345678",
+            "password": "secret-value",
+            "device_id": "clawkit-codex-test-device",
+            "product": "codex-remote",
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "code": 200,
+            "message": "登录成功",
+            "data": {
+                "token": "jwt-for-phone-test",
+                "expires_in": 3600,
+                "user": { "id": 8, "username": "phone-user", "phone": "13812345678" }
+            }
+        })))
+        .mount(&server)
+        .await;
+    let dir = tempdir().unwrap();
+    let session_path = dir.path().join("clawkit-account.json");
+    std::fs::write(
+        &session_path,
+        serde_json::to_vec(&json!({
+            "token": "old-token",
+            "user": { "username": "old" },
+            "device_id": "clawkit-codex-test-device",
+            "expires_at": u64::MAX,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let client = ClawkitAccountClient::new(server.uri(), &session_path).unwrap();
+
+    let logged_in = client.login("13812345678", "secret-value").await.unwrap();
+
+    assert_eq!(logged_in["authenticated"], true);
+    assert_eq!(logged_in["user"]["phone"], "13812345678");
+}
+
 #[test]
 fn status_and_logout_do_not_expose_the_jwt() {
     let dir = tempdir().unwrap();

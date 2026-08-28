@@ -449,35 +449,6 @@ fn start_native_menu_localizer(inspector_port: u16) {
     });
 }
 
-#[cfg(windows)]
-fn apply_codexplusplus_window_icon_after_launch(process_id: u32) {
-    let icon_resource_path =
-        std::env::current_exe().unwrap_or_else(|_| PathBuf::from("codex-plus-plus.exe"));
-    tokio::spawn(async move {
-        for attempt in 1..=30 {
-            if crate::windows_apply_codexplusplus_icon_to_process_window(
-                process_id,
-                icon_resource_path.clone(),
-            ) {
-                return;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            if attempt == 30 {
-                let _ = crate::diagnostic_log::append_diagnostic_log(
-                    "launcher.window_icon.apply_failed",
-                    serde_json::json!({
-                        "process_id": process_id,
-                        "icon_resource_path": icon_resource_path.to_string_lossy()
-                    }),
-                );
-            }
-        }
-    });
-}
-
-#[cfg(not(windows))]
-fn apply_codexplusplus_window_icon_after_launch(_process_id: u32) {}
-
 pub trait IntoLaunchHooks {
     fn into_launch_hooks(self) -> Arc<dyn LaunchHooks>;
 }
@@ -724,7 +695,6 @@ impl LaunchHooks for DefaultLaunchHooks {
                     unreachable!();
                 };
                 let process_id = activate_packaged_app(app_user_model_id, arguments).await?;
-                apply_codexplusplus_window_icon_after_launch(process_id);
                 if let Some(inspector_port) = native_menu_inspector_port {
                     start_native_menu_localizer(inspector_port);
                 }

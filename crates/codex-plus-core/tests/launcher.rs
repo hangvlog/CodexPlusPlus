@@ -695,11 +695,12 @@ fn launcher_packaged_activation_can_preserve_process_id() {
 }
 
 #[test]
-fn launcher_applies_codexplusplus_window_icon_after_packaged_activation() {
+fn launcher_never_rebrands_the_official_codex_window() {
     let source = include_str!("../src/launcher.rs");
 
-    assert!(source.contains("apply_codexplusplus_window_icon_after_launch(process_id);"));
-    assert!(source.contains("windows_apply_codexplusplus_icon_to_process_window"));
+    assert!(!source.contains("WM_SETICON"));
+    assert!(!source.contains("apply_codexplusplus_window_icon_after_launch"));
+    assert!(!source.contains("windows_apply_codexplusplus_icon_to_process_window"));
 }
 
 #[test]
