@@ -144,6 +144,7 @@ create_app "ClawKit Desktop" "ClawKitDesktop" "$CC_SWITCH_BINARY" "com.clawkit.d
 create_app "ClawKit Settings" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.hang.clawkit.settings" "false"
 cp "$BINARY_DIR/codex-plus-plus" "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
 chmod +x "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
+codesign --force --sign - "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
 
 sign_app "$STAGE/ClawKit Desktop.app"
 sign_app "$STAGE/ClawKit Settings.app"

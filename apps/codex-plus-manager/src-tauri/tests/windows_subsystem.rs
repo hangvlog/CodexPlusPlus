@@ -196,6 +196,9 @@ fn macos_packager_keeps_codex_helper_internal() {
         "cp \"$BINARY_DIR/codex-plus-plus\" \"$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus\""
     ));
     assert!(script.contains(
+        "codesign --force --sign - \"$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus\""
+    ));
+    assert!(script.contains(
         "create_app \"ClawKit Settings\" \"CodexPlusPlusManager\" \"$BINARY_DIR/codex-plus-plus-manager\" \"com.hang.clawkit.settings\" \"false\""
     ));
 }
