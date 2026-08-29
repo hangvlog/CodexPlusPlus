@@ -1,5 +1,8 @@
-import { readdir, readFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
+import { createReadStream } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const [directory = "installers"] = process.argv.slice(2);
 const apiBase = process.env.API_BASE?.replace(/\/+$/, "");
@@ -18,6 +21,51 @@ async function api(path, init = {}) {
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+  return payload;
+}
+
+async function sha256(path) {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+async function upload(path, filePath) {
+  const config = [
+    `url = "${apiBase}${path}"`,
+    'request = "POST"',
+    `header = "Authorization: Bearer ${token}"`,
+    `form = "file=@${filePath}"`,
+    "connect-timeout = 30",
+    "max-time = 1800",
+    "retry = 2",
+    "retry-delay = 5",
+    "retry-all-errors",
+    "fail-with-body",
+    "silent",
+    "show-error",
+  ].join("\n");
+
+  const child = spawn("curl", ["--config", "-"], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+  child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+  child.stdin.end(config);
+
+  const exitCode = await new Promise((finish, reject) => {
+    child.once("error", reject);
+    child.once("close", finish);
+  });
+  if (exitCode !== 0) {
+    throw new Error(`${path}: curl exited ${exitCode}: ${stderr.trim()}`);
+  }
+  const payload = JSON.parse(stdout);
+  if (payload.code !== 200) {
+    throw new Error(`${path}: ${payload.message || "upload failed"}`);
+  }
   return payload;
 }
 
@@ -60,14 +108,22 @@ if (signatures[0] !== `${windowsInstallers[0]}.sig`) {
 }
 
 for (const name of [...files, ...signatures]) {
-  const data = await readFile(resolve(directory, name));
-  const form = new FormData();
-  form.append("file", new Blob([data]), basename(name));
-  const uploaded = await api(`/admin/releases/${release.data.id}/upload`, {
-    method: "POST",
-    body: form,
-  });
+  const filePath = resolve(directory, name);
+  if (!name.endsWith(".sig")) {
+    const [{ size }, digest] = await Promise.all([stat(filePath), sha256(filePath)]);
+    const existing = release.data.artifacts?.find(
+      (artifact) => artifact.filename === name
+        && artifact.file_size === size
+        && artifact.sha256 === digest,
+    );
+    if (existing) {
+      console.log(`Skipping already uploaded ${name}.`);
+      continue;
+    }
+  }
+  const uploaded = await upload(`/admin/releases/${release.data.id}/upload`, filePath);
   if (uploaded.code !== 200) throw new Error(`上传 ${name} 失败: ${uploaded.message}`);
+  release.data = uploaded.data;
 }
 
 if (release.data.status !== "published") {

@@ -1,0 +1,49 @@
+name: Publish ClawKit backend release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub release tag to publish to the ClawKit backend
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-backend:
+    name: Publish ClawKit update manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout publisher
+        uses: actions/checkout@v4
+
+      - name: Check backend publishing configuration
+        env:
+          API_BASE: ${{ secrets.CLAWKIT_API_BASE }}
+          RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          test -n "$API_BASE" || { echo "CLAWKIT_API_BASE is required" >&2; exit 1; }
+          test -n "$RELEASE_TOKEN" || { echo "CLAWKIT_RELEASE_TOKEN is required" >&2; exit 1; }
+
+      - name: Download ClawKit installers and release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.exe.sig" --pattern "ClawKit-*.dmg" --dir installers
+          gh release view "$TAG" --repo "$REPO" --json body --jq .body > release-body.txt
+
+      - name: Upload and publish release in ClawKit backend
+        env:
+          API_BASE: ${{ secrets.CLAWKIT_API_BASE }}
+          RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
+          TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          export RELEASE_BODY="$(cat release-body.txt)"
+          node .github/scripts/publish-clawkit-release.mjs installers
