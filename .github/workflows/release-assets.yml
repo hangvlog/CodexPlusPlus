@@ -100,9 +100,21 @@ jobs:
           }
           $version = "${{ github.event.release.tag_name }}".TrimStart("v", "V")
           $installer = "../../dist/windows/ClawKit-$version-windows-x64-setup.exe"
-          pnpm tauri signer sign $installer
-          if (-not (Test-Path "$installer.sig")) {
-            throw "Tauri signer did not create $installer.sig"
+          $privateKeyPath = Join-Path $env:RUNNER_TEMP "clawkit-tauri-updater.key"
+          try {
+            [System.IO.File]::WriteAllText($privateKeyPath, $env:TAURI_SIGNING_PRIVATE_KEY)
+            pnpm tauri signer sign `
+              --private-key-path $privateKeyPath `
+              --password $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD `
+              $installer
+            if ($LASTEXITCODE -ne 0) {
+              throw "Tauri signer failed with exit code $LASTEXITCODE"
+            }
+            if (-not (Test-Path "$installer.sig")) {
+              throw "Tauri signer did not create $installer.sig"
+            }
+          } finally {
+            Remove-Item $privateKeyPath -Force -ErrorAction SilentlyContinue
           }
 
       - name: Upload Windows installer
