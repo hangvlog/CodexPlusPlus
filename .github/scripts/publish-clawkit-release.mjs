@@ -47,11 +47,19 @@ if (release.code !== 200) {
 }
 if (!release.data?.id) throw new Error(`无法创建或找到 ${productName} ${version}`);
 
-const files = (await readdir(resolve(directory)))
-  .filter((name) => /\.(dmg|exe)$/i.test(name));
+const entries = await readdir(resolve(directory));
+const files = entries.filter((name) => /\.(dmg|exe)$/i.test(name)).sort();
+const signatures = entries.filter((name) => /\.exe\.sig$/i.test(name)).sort();
+const windowsInstallers = files.filter((name) => /\.exe$/i.test(name));
 if (!files.length) throw new Error("没有找到 ClawKit 桌面安装包");
+if (windowsInstallers.length !== 1 || signatures.length !== 1) {
+  throw new Error("Windows 安装包和 Tauri 签名必须各有且仅有一个");
+}
+if (signatures[0] !== `${windowsInstallers[0]}.sig`) {
+  throw new Error(`签名 ${signatures[0]} 与安装包 ${windowsInstallers[0]} 不匹配`);
+}
 
-for (const name of files) {
+for (const name of [...files, ...signatures]) {
   const data = await readFile(resolve(directory, name));
   const form = new FormData();
   form.append("file", new Blob([data]), basename(name));
@@ -68,4 +76,6 @@ if (release.data.status !== "published") {
   });
   if (published.code !== 200) throw new Error(`发布失败: ${published.message}`);
 }
-console.log(`Published ${productName} ${version} with ${files.length} installers.`);
+console.log(
+  `Published ${productName} ${version} with ${files.length} installers and ${signatures.length} updater signature.`,
+);

@@ -88,12 +88,30 @@ jobs:
           & $makensis "/INPUTCHARSET" "UTF8" "/DVERSION=$version" CodexPlusPlus.nsi
           Pop-Location
 
+      - name: Sign Windows updater installer
+        working-directory: vendor/cc-switch
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY is required for every ClawKit release"
+          }
+          $version = "${{ github.event.release.tag_name }}".TrimStart("v", "V")
+          $installer = "../../dist/windows/ClawKit-$version-windows-x64-setup.exe"
+          pnpm tauri signer sign $installer
+          if (-not (Test-Path "$installer.sig")) {
+            throw "Tauri signer did not create $installer.sig"
+          }
+
       - name: Upload Windows installer
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name }}
           files: |
             dist/windows/*.exe
+            dist/windows/*.exe.sig
             dist/windows/*.zip
 
   macos-dmg:
@@ -264,12 +282,9 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
         shell: bash
         run: |
-          if [ -n "$API_BASE" ] && [ -n "$RELEASE_TOKEN" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "ClawKit backend secrets are not configured; skipping backend publication."
-          fi
+          test -n "$API_BASE" || { echo "CLAWKIT_API_BASE is required" >&2; exit 1; }
+          test -n "$RELEASE_TOKEN" || { echo "CLAWKIT_RELEASE_TOKEN is required" >&2; exit 1; }
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
 
       - name: Download ClawKit installers
         if: steps.config.outputs.enabled == 'true'
@@ -277,7 +292,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.dmg" --dir installers
+        run: gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.exe.sig" --pattern "ClawKit-*.dmg" --dir installers
 
       - name: Upload and publish release in ClawKit backend
         if: steps.config.outputs.enabled == 'true'

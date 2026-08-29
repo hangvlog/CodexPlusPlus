@@ -19,6 +19,10 @@ The release workflow uses pnpm and uploads installers to the existing backend wh
 computes SHA-256 while uploading. The desktop updater rejects a downloaded installer when the
 digest does not match the update manifest.
 
+Windows releases are also signed with the long-lived Tauri updater key stored in GitHub Actions
+secrets. The workflow fails if the signing or backend publishing configuration is missing, and it
+uploads the installer before its matching `.sig` so the backend can atomically attach the signature.
+
 The public installer is an integrated package: the CC Switch-derived shell is the main
 `ClawKit Desktop` entry, while the Codex++ launcher remains an internal helper and the optional
 settings manager is installed alongside it. No separate Codex-branded replacement is exposed.
