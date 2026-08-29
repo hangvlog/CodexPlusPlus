@@ -312,6 +312,7 @@ jobs:
           API_BASE: ${{ secrets.CLAWKIT_API_BASE }}
           RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
           RELEASE_BODY: ${{ github.event.release.body }}
         shell: bash
         run: node .github/scripts/publish-clawkit-release.mjs installers

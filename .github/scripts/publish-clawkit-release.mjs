@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const [directory = "installers"] = process.argv.slice(2);
 const apiBase = process.env.API_BASE?.replace(/\/+$/, "");
 const token = process.env.RELEASE_TOKEN;
 const version = process.env.TAG?.replace(/^v/i, "");
+const tag = process.env.TAG;
+const releaseRepository = process.env.RELEASE_REPOSITORY;
 const productName = "clawkit-desktop";
 
 if (!apiBase || !token || !version) {
@@ -107,10 +109,40 @@ if (signatures[0] !== `${windowsInstallers[0]}.sig`) {
   throw new Error(`签名 ${signatures[0]} 与安装包 ${windowsInstallers[0]} 不匹配`);
 }
 
-for (const name of [...files, ...signatures]) {
+const signature = (await readFile(resolve(directory, signatures[0]), "utf8")).trim();
+
+function coordinates(name) {
+  const platform = name.toLowerCase().endsWith(".exe") ? "windows" : "macos";
+  const arch = /arm64|aarch64/i.test(name) ? "arm64" : "x64";
+  return { platform, arch };
+}
+
+for (const name of releaseRepository ? files : [...files, ...signatures]) {
   const filePath = resolve(directory, name);
+  const [{ size }, digest] = await Promise.all([stat(filePath), sha256(filePath)]);
+  if (releaseRepository) {
+    const { platform, arch } = coordinates(name);
+    const registered = await api(`/admin/releases/${release.data.id}/artifacts/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform,
+        arch,
+        channel: "stable",
+        filename: name,
+        download_url: `https://github.com/${releaseRepository}/releases/download/${tag}/${encodeURIComponent(name)}`,
+        sha256: digest,
+        signature: platform === "windows" ? signature : null,
+        file_size: size,
+      }),
+    });
+    if (registered.code !== 200) {
+      throw new Error(`登记 ${name} 失败: ${registered.message}`);
+    }
+    release.data = registered.data;
+    continue;
+  }
   if (!name.endsWith(".sig")) {
-    const [{ size }, digest] = await Promise.all([stat(filePath), sha256(filePath)]);
     const existing = release.data.artifacts?.find(
       (artifact) => artifact.filename === name
         && artifact.file_size === size

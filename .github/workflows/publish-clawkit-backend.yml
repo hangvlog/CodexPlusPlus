@@ -43,6 +43,7 @@ jobs:
           API_BASE: ${{ secrets.CLAWKIT_API_BASE }}
           RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
           TAG: ${{ inputs.release_tag }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           export RELEASE_BODY="$(cat release-body.txt)"
