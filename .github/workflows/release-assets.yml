@@ -276,6 +276,9 @@ jobs:
     needs:
       - windows-installer
       - macos-dmg
+    # Windows 是主力平台：只要 Windows 构建成功就继续发布；
+    # macOS 构建失败只影响 macOS 自动更新，不阻塞整条发布流水线。
+    if: always() && needs.windows-installer.result == 'success'
     steps:
       - name: Generate latest.json
         env:
@@ -319,6 +322,7 @@ jobs:
     name: Publish ClawKit update manifest
     runs-on: ubuntu-latest
     needs: latest-json
+    if: always() && needs.latest-json.result == 'success'
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
