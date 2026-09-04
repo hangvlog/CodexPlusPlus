@@ -98,18 +98,39 @@ if (release.code !== 200) {
 if (!release.data?.id) throw new Error(`无法创建或找到 ${productName} ${version}`);
 
 const entries = await readdir(resolve(directory));
-const files = entries.filter((name) => /\.(dmg|exe)$/i.test(name)).sort();
-const signatures = entries.filter((name) => /\.exe\.sig$/i.test(name)).sort();
+const files = entries
+  .filter((name) => /(\.dmg|\.exe|\.app\.tar\.gz)$/i.test(name))
+  .sort();
+const signatures = entries.filter((name) => /\.sig$/i.test(name)).sort();
 const windowsInstallers = files.filter((name) => /\.exe$/i.test(name));
+const macUpdaterArchives = files.filter((name) => /\.app\.tar\.gz$/i.test(name));
 if (!files.length) throw new Error("没有找到 ClawKit 桌面安装包");
-if (windowsInstallers.length !== 1 || signatures.length !== 1) {
-  throw new Error("Windows 安装包和 Tauri 签名必须各有且仅有一个");
+if (windowsInstallers.length !== 1) {
+  throw new Error("Windows 安装包必须有且仅有一个");
 }
-if (signatures[0] !== `${windowsInstallers[0]}.sig`) {
-  throw new Error(`签名 ${signatures[0]} 与安装包 ${windowsInstallers[0]} 不匹配`);
+if (!macUpdaterArchives.length) {
+  throw new Error("缺少 macOS 更新包（ClawKit-*.app.tar.gz）");
 }
 
-const signature = (await readFile(resolve(directory, signatures[0]), "utf8")).trim();
+// Windows setup.exe 与每个 macOS .app.tar.gz 都必须有对应的 Tauri 更新签名
+const updaterTargets = [...windowsInstallers, ...macUpdaterArchives];
+const signatureByFile = new Map();
+for (const target of updaterTargets) {
+  const sigName = `${target}.sig`;
+  if (!signatures.includes(sigName)) {
+    throw new Error(`缺少 Tauri 签名文件 ${sigName}`);
+  }
+  signatureByFile.set(
+    target,
+    (await readFile(resolve(directory, sigName), "utf8")).trim(),
+  );
+}
+const orphanSignatures = signatures.filter(
+  (name) => !signatureByFile.has(name.replace(/\.sig$/i, "")),
+);
+if (orphanSignatures.length) {
+  throw new Error(`签名文件缺少对应产物: ${orphanSignatures.join(", ")}`);
+}
 
 function coordinates(name) {
   const platform = name.toLowerCase().endsWith(".exe") ? "windows" : "macos";
@@ -132,7 +153,7 @@ for (const name of releaseRepository ? files : [...files, ...signatures]) {
         filename: name,
         download_url: `https://github.com/${releaseRepository}/releases/download/${tag}/${encodeURIComponent(name)}`,
         sha256: digest,
-        signature: platform === "windows" ? signature : null,
+        signature: signatureByFile.get(name) ?? null,
         file_size: size,
       }),
     });
@@ -165,5 +186,5 @@ if (release.data.status !== "published") {
   if (published.code !== 200) throw new Error(`发布失败: ${published.message}`);
 }
 console.log(
-  `Published ${productName} ${version} with ${files.length} installers and ${signatures.length} updater signature.`,
+  `Published ${productName} ${version} with ${files.length} installers and ${signatures.length} updater signatures.`,
 );

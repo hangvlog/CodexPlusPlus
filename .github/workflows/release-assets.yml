@@ -224,6 +224,42 @@ jobs:
             echo "verified: $app"
           done
 
+      - name: Build macOS updater archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION#V}"
+          tar -czf "dist/macos/ClawKit-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz" \
+            -C dist/macos/stage "ClawKit Desktop.app"
+
+      - name: Sign macOS updater archive
+        working-directory: vendor/cc-switch
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is required for every ClawKit release" >&2
+            exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION#V}"
+          ARCHIVE="../../dist/macos/ClawKit-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz"
+          PRIVATE_KEY_PATH="$(mktemp "${RUNNER_TEMP:-/tmp}/clawkit-tauri-updater.XXXXXX")"
+          trap 'rm -f "$PRIVATE_KEY_PATH"' EXIT
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$PRIVATE_KEY_PATH"
+          pnpm tauri signer sign \
+            --private-key-path "$PRIVATE_KEY_PATH" \
+            --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" \
+            "$ARCHIVE"
+          if [ ! -f "$ARCHIVE.sig" ]; then
+            echo "Tauri signer did not create $ARCHIVE.sig" >&2
+            exit 1
+          fi
+
       - name: Upload macOS DMG
         uses: softprops/action-gh-release@v2
         with:
@@ -231,6 +267,8 @@ jobs:
           files: |
             dist/macos/*.dmg
             dist/macos/*.zip
+            dist/macos/*.app.tar.gz
+            dist/macos/*.app.tar.gz.sig
 
   latest-json:
     name: Upload static latest.json
@@ -304,7 +342,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.exe.sig" --pattern "ClawKit-*.dmg" --dir installers
+        run: gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.exe.sig" --pattern "ClawKit-*.dmg" --pattern "ClawKit-*.app.tar.gz" --pattern "ClawKit-*.app.tar.gz.sig" --dir installers
 
       - name: Upload and publish release in ClawKit backend
         if: steps.config.outputs.enabled == 'true'
