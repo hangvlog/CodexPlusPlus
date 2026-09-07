@@ -179,3 +179,23 @@ fn injection_bundle_contains_clawkit_account_entry() {
     assert!(script.contains("/clawkit/relay/stop"));
     assert!(!script.contains("new WebSocket("));
 }
+
+#[tokio::test]
+async fn unreachable_account_service_returns_actionable_network_guidance() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    drop(listener);
+    let dir = tempdir().unwrap();
+    let client = ClawkitAccountClient::new(
+        format!("http://{address}"),
+        dir.path().join("clawkit-account.json"),
+    )
+    .unwrap();
+
+    let error = client.login("alice", "secret-value").await.unwrap_err();
+    let message = error.to_string();
+
+    assert!(message.contains("无法连接 ClawKit 账号服务"));
+    assert!(message.contains("直连重试仍未成功"));
+    assert!(message.contains("代理、防火墙和 DNS"));
+}

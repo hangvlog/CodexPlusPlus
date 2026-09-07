@@ -29,6 +29,12 @@ settings manager is installed alongside it. No separate Codex-branded replacemen
 Both layers read the same `~/.codex-session-delete/clawkit-account.json` session, so users
 sign in once and never paste a gateway URL or API key.
 
+Account login first follows the operating system's network and proxy settings. If the connection
+or TLS handshake times out or fails before any HTTP response arrives, both desktop layers retry the
+same ClawKit-owned HTTPS endpoint once without the system proxy. A second failure is reported as an
+actionable timeout or network/DNS/TLS/proxy error instead of the former generic account-service
+message. Invalid credentials and other HTTP responses are not retried.
+
 The ClawKit release version is shared by the CC Switch shell and this fork so a freshly
 installed bundle does not immediately report itself as older than the backend manifest.
 The complete AGPL-3.0 source remains available at `github.com/hangvlog/CodexPlusPlus`.
