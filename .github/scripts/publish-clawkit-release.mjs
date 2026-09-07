@@ -86,16 +86,29 @@ let release = await api("/admin/releases/create", {
   }),
 });
 
+let existingRelease = false;
 if (release.code !== 200) {
   const existing = await api(
     `/admin/releases/list?product_name=${productName}&page=1&page_size=100`,
   );
+  existingRelease = true;
   release = {
     code: 200,
     data: existing.data?.list?.find((item) => item.version === version),
   };
 }
 if (!release.data?.id) throw new Error(`无法创建或找到 ${productName} ${version}`);
+if (existingRelease && notes.length) {
+  const updated = await api(`/admin/releases/${release.data.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ changelog: notes }),
+  });
+  if (updated.code !== 200) {
+    throw new Error(`更新 ${productName} ${version} 发布说明失败: ${updated.message}`);
+  }
+  release = updated;
+}
 
 const entries = await readdir(resolve(directory));
 const files = entries
