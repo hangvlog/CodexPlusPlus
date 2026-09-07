@@ -142,7 +142,8 @@ function coordinates(name) {
 for (const name of releaseRepository ? files : [...files, ...signatures]) {
   const filePath = resolve(directory, name);
   const [{ size }, digest] = await Promise.all([stat(filePath), sha256(filePath)]);
-  if (releaseRepository) {
+  const uploadWindowsInstaller = releaseRepository && /\.exe$/i.test(name);
+  if (releaseRepository && !uploadWindowsInstaller) {
     const { platform, arch } = coordinates(name);
     const registered = await api(`/admin/releases/${release.data.id}/artifacts/register`, {
       method: "POST",
@@ -168,7 +169,8 @@ for (const name of releaseRepository ? files : [...files, ...signatures]) {
     const existing = release.data.artifacts?.find(
       (artifact) => artifact.filename === name
         && artifact.file_size === size
-        && artifact.sha256 === digest,
+        && artifact.sha256 === digest
+        && artifact.cos_path,
     );
     if (existing) {
       console.log(`Skipping already uploaded ${name}.`);
@@ -178,6 +180,20 @@ for (const name of releaseRepository ? files : [...files, ...signatures]) {
   const uploaded = await upload(`/admin/releases/${release.data.id}/upload`, filePath);
   if (uploaded.code !== 200) throw new Error(`上传 ${name} 失败: ${uploaded.message}`);
   release.data = uploaded.data;
+
+  // Windows 是国内主力平台：安装包必须真正上传到 COS，而不是只登记 GitHub URL。
+  // 上传安装包后再登记同名签名，保证后台生成的 Tauri 更新清单仍可校验。
+  if (uploadWindowsInstaller) {
+    const sigName = `${name}.sig`;
+    const signed = await upload(
+      `/admin/releases/${release.data.id}/upload`,
+      resolve(directory, sigName),
+    );
+    if (signed.code !== 200) {
+      throw new Error(`上传 ${sigName} 失败: ${signed.message}`);
+    }
+    release.data = signed.data;
+  }
 }
 
 if (release.data.status !== "published") {
