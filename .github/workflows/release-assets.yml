@@ -128,6 +128,9 @@ jobs:
 
   macos-dmg:
     name: macOS DMG (${{ matrix.arch }})
+    # ClawKit releases are Windows-only. Keep the implementation available for
+    # a future policy change, but do not allocate macOS runners.
+    if: ${{ false }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -273,11 +276,8 @@ jobs:
   latest-json:
     name: Upload static latest.json
     runs-on: ubuntu-latest
-    needs:
-      - windows-installer
-      - macos-dmg
-    # Windows 是主力平台：只要 Windows 构建成功就继续发布；
-    # macOS 构建失败只影响 macOS 自动更新，不阻塞整条发布流水线。
+    needs: windows-installer
+    # ClawKit 只发布 Windows 安装包；Windows 成功后立即继续发布。
     if: always() && needs.windows-installer.result == 'success'
     steps:
       - name: Generate latest.json
