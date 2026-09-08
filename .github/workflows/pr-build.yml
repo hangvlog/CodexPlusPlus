@@ -128,6 +128,9 @@ jobs:
 
   macos-dmg:
     name: macOS DMG (${{ matrix.arch }})
+    # ClawKit CI and releases are Windows-only. Keep the implementation for a
+    # future policy change, but do not allocate macOS runners.
+    if: ${{ false }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
