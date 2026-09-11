@@ -1,6 +1,6 @@
 {
   "name": "codex-plus-manager",
-  "version": "3.19.16",
+  "version": "3.19.18",
   "private": true,
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@10.12.3",
