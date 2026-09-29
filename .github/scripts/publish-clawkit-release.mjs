@@ -8,8 +8,6 @@ const [directory = "installers"] = process.argv.slice(2);
 const apiBase = process.env.API_BASE?.replace(/\/+$/, "");
 const token = process.env.RELEASE_TOKEN;
 const version = process.env.TAG?.replace(/^v/i, "");
-const tag = process.env.TAG;
-const releaseRepository = process.env.RELEASE_REPOSITORY;
 const productName = "clawkit-desktop";
 
 if (!apiBase || !token || !version) {
@@ -148,65 +146,33 @@ if (orphanSignatures.length) {
   throw new Error(`签名文件缺少对应产物: ${orphanSignatures.join(", ")}`);
 }
 
-function coordinates(name) {
-  const platform = name.toLowerCase().endsWith(".exe") ? "windows" : "macos";
-  const arch = /arm64|aarch64/i.test(name) ? "arm64" : "x64";
-  return { platform, arch };
-}
-
-for (const name of releaseRepository ? files : [...files, ...signatures]) {
+// Every desktop download uses the existing COS channel. GitHub remains the
+// immutable build archive, while the same verified bytes are mirrored for users.
+for (const name of files) {
   const filePath = resolve(directory, name);
   const [{ size }, digest] = await Promise.all([stat(filePath), sha256(filePath)]);
-  const uploadWindowsInstaller = releaseRepository && /\.exe$/i.test(name);
-  if (releaseRepository && !uploadWindowsInstaller) {
-    const { platform, arch } = coordinates(name);
-    const registered = await api(`/admin/releases/${release.data.id}/artifacts/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platform,
-        arch,
-        channel: "stable",
-        filename: name,
-        download_url: `https://github.com/${releaseRepository}/releases/download/${tag}/${encodeURIComponent(name)}`,
-        sha256: digest,
-        signature: signatureByFile.get(name) ?? null,
-        file_size: size,
-      }),
-    });
-    if (registered.code !== 200) {
-      throw new Error(`登记 ${name} 失败: ${registered.message}`);
-    }
-    release.data = registered.data;
-    continue;
+  const existing = release.data.artifacts?.find(
+    (artifact) => artifact.filename === name
+      && artifact.file_size === size
+      && artifact.sha256 === digest
+      && artifact.cos_path,
+  );
+  if (existing) {
+    console.log(`Skipping already uploaded ${name}.`);
+  } else {
+    const uploaded = await upload(`/admin/releases/${release.data.id}/upload`, filePath);
+    release.data = uploaded.data;
   }
-  if (!name.endsWith(".sig")) {
-    const existing = release.data.artifacts?.find(
-      (artifact) => artifact.filename === name
-        && artifact.file_size === size
-        && artifact.sha256 === digest
-        && artifact.cos_path,
-    );
-    if (existing) {
-      console.log(`Skipping already uploaded ${name}.`);
-      continue;
-    }
-  }
-  const uploaded = await upload(`/admin/releases/${release.data.id}/upload`, filePath);
-  if (uploaded.code !== 200) throw new Error(`上传 ${name} 失败: ${uploaded.message}`);
-  release.data = uploaded.data;
 
-  // Windows 是国内主力平台：安装包必须真正上传到 COS，而不是只登记 GitHub URL。
-  // 上传安装包后再登记同名签名，保证后台生成的 Tauri 更新清单仍可校验。
-  if (uploadWindowsInstaller) {
-    const sigName = `${name}.sig`;
+  const signature = signatureByFile.get(name);
+  const current = release.data.artifacts?.find((artifact) => artifact.filename === name);
+  // An interrupted previous upload may already have copied the archive but not
+  // its signature. Repair that case instead of skipping the entire pair.
+  if (signature && current?.signature !== signature) {
     const signed = await upload(
       `/admin/releases/${release.data.id}/upload`,
-      resolve(directory, sigName),
+      resolve(directory, `${name}.sig`),
     );
-    if (signed.code !== 200) {
-      throw new Error(`上传 ${sigName} 失败: ${signed.message}`);
-    }
     release.data = signed.data;
   }
 }
