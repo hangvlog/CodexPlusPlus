@@ -6,7 +6,7 @@ on:
       release_tag:
         description: Existing immutable release tag to mirror and publish
         required: true
-        default: v3.19.26
+        default: v3.19.27
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           gh release view "$TAG" --repo "$REPO" --json body,assets > release.json
           gh release download "$TAG" --repo "$REPO" --pattern 'ClawKit-*.exe' --pattern 'ClawKit-*.exe.sig' --pattern 'ClawKit-*.dmg' --pattern 'ClawKit-*.app.tar.gz' --pattern 'ClawKit-*.app.tar.gz.sig' --dir installers
-          gh api repos/hangvlog/cc-switch/contents/src-tauri/tauri.conf.json?ref=2316d09008f3bddf8cc81f761158001caff6d1e5 --jq .content | base64 --decode > shell-config.json
+          gh api repos/hangvlog/cc-switch/contents/src-tauri/tauri.conf.json?ref=7ff42978da9362013ccd7e7cc081ae984c8f50ed --jq .content | base64 --decode > shell-config.json
           node .github/scripts/verify-updater-signature.mjs shell-config.json installers/*.exe installers/*.app.tar.gz
       - name: Verify original asset digests
         run: |
