@@ -129,7 +129,7 @@ verify_app() {
     echo "error: missing PkgInfo in $app_dir" >&2
     return 1
   fi
-  codesign -dv "$app_dir" >/dev/null 2>&1 || {
+  codesign --verify --deep --strict "$app_dir" >/dev/null 2>&1 || {
     echo "error: codesign verification failed for $app_dir" >&2
     return 1
   }
@@ -140,7 +140,8 @@ if [ -z "$CC_SWITCH_BINARY" ]; then
   echo "error: CC_SWITCH_BINARY is required for the integrated ClawKit Desktop package" >&2
   exit 1
 fi
-create_app "ClawKit Desktop" "ClawKitDesktop" "$CC_SWITCH_BINARY" "com.clawkit.desktop" "false"
+create_app "ClawKit Desktop" "cc-switch" "$CC_SWITCH_BINARY" "com.clawkit.desktop" "false"
+ln -s cc-switch "$STAGE/ClawKit Desktop.app/Contents/MacOS/ClawKitDesktop"
 create_app "ClawKit Settings" "CodexPlusPlusManager" "$BINARY_DIR/codex-plus-plus-manager" "com.hang.clawkit.settings" "false"
 cp "$BINARY_DIR/codex-plus-plus" "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"
 chmod +x "$STAGE/ClawKit Desktop.app/Contents/MacOS/codex-plus-plus"

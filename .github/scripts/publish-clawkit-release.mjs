@@ -121,9 +121,11 @@ if (!files.length) throw new Error("没有找到 ClawKit 桌面安装包");
 if (windowsInstallers.length !== 1) {
   throw new Error("Windows 安装包必须有且仅有一个");
 }
-if (!macUpdaterArchives.length) {
-  // Windows 是主力平台；macOS 更新包缺失只告警，不阻塞发版
-  console.warn("警告：缺少 macOS 更新包（ClawKit-*.app.tar.gz），macOS 客户端将收不到本次自动更新");
+for (const arch of ["arm64", "x64"]) {
+  const name = `ClawKit-${version}-macos-${arch}.app.tar.gz`;
+  if (!macUpdaterArchives.includes(name)) {
+    throw new Error(`缺少 ${arch} 签名更新归档；拒绝发布不完整的共享更新清单`);
+  }
 }
 
 // Windows setup.exe 与每个 macOS .app.tar.gz 都必须有对应的 Tauri 更新签名
