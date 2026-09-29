@@ -1,11 +1,20 @@
 name: Release assets
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Existing immutable release tag to build and upload
+        required: true
+        type: string
   release:
     types: [published]
 
 permissions:
   contents: write
+
+env:
+  CLAWKIT_RELEASE_TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
 
 jobs:
   windows-installer:
@@ -14,7 +23,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
 
       - name: Checkout ClawKit Desktop shell
         uses: actions/checkout@v4
@@ -26,7 +35,7 @@ jobs:
       - name: Verify pinned shell version
         shell: bash
         run: |
-          node -e 'const fs = require("fs"); const v = process.env.GITHUB_REF_NAME.replace(/^v/, ""); for (const p of ["vendor/cc-switch/package.json", "vendor/cc-switch/src-tauri/tauri.conf.json"]) { if (JSON.parse(fs.readFileSync(p)).version !== v) throw new Error(`Version mismatch: ${p}`); }'
+          node -e 'const fs = require("fs"); const v = process.env.CLAWKIT_RELEASE_TAG.replace(/^v/, ""); for (const p of ["vendor/cc-switch/package.json", "vendor/cc-switch/src-tauri/tauri.conf.json"]) { if (JSON.parse(fs.readFileSync(p)).version !== v) throw new Error(`Version mismatch: ${p}`); }'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -83,14 +92,14 @@ jobs:
       - name: Build Windows zip asset
         shell: pwsh
         run: |
-          $version = "${{ github.event.release.tag_name }}".TrimStart("v", "V")
+          $version = $env:CLAWKIT_RELEASE_TAG.TrimStart("v", "V")
           New-Item -ItemType Directory -Force dist/windows | Out-Null
           Compress-Archive -Path dist/windows/app/* -DestinationPath "dist/windows/ClawKit-$version-windows-x64.zip" -Force
 
       - name: Build Windows installer
         shell: pwsh
         run: |
-          $version = "${{ github.event.release.tag_name }}".TrimStart("v", "V")
+          $version = $env:CLAWKIT_RELEASE_TAG.TrimStart("v", "V")
           $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
             $makensis = "makensis"
@@ -109,7 +118,7 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw "TAURI_SIGNING_PRIVATE_KEY is required for every ClawKit release"
           }
-          $version = "${{ github.event.release.tag_name }}".TrimStart("v", "V")
+          $version = $env:CLAWKIT_RELEASE_TAG.TrimStart("v", "V")
           $installer = "../../dist/windows/ClawKit-$version-windows-x64-setup.exe"
           $privateKeyPath = Join-Path $env:RUNNER_TEMP "clawkit-tauri-updater.key"
           try {
@@ -132,14 +141,20 @@ jobs:
         shell: bash
         run: node .github/scripts/verify-updater-signature.mjs vendor/cc-switch/src-tauri/tauri.conf.json dist/windows/*.exe
 
-      - name: Upload Windows installer
-        uses: softprops/action-gh-release@v2
+      - name: Archive Windows installers
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: |
-            dist/windows/*.exe
-            dist/windows/*.exe.sig
-            dist/windows/*.zip
+          name: clawkit-windows-${{ env.CLAWKIT_RELEASE_TAG }}
+          path: dist/windows/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Windows installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: node .github/scripts/upload-release-assets.mjs dist/windows
 
   macos-dmg:
     name: macOS DMG (${{ matrix.arch }})
@@ -158,7 +173,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
 
       - name: Checkout ClawKit Desktop shell
         uses: actions/checkout@v4
@@ -170,7 +185,7 @@ jobs:
       - name: Verify pinned shell version
         shell: bash
         run: |
-          node -e 'const fs = require("fs"); const v = process.env.GITHUB_REF_NAME.replace(/^v/, ""); for (const p of ["vendor/cc-switch/package.json", "vendor/cc-switch/src-tauri/tauri.conf.json"]) { if (JSON.parse(fs.readFileSync(p)).version !== v) throw new Error(`Version mismatch: ${p}`); }'
+          node -e 'const fs = require("fs"); const v = process.env.CLAWKIT_RELEASE_TAG.replace(/^v/, ""); for (const p of ["vendor/cc-switch/package.json", "vendor/cc-switch/src-tauri/tauri.conf.json"]) { if (JSON.parse(fs.readFileSync(p)).version !== v) throw new Error(`Version mismatch: ${p}`); }'
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -217,7 +232,7 @@ jobs:
 
       - name: Build macOS DMG
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${CLAWKIT_RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           BINARY_DIR="$PWD/target/${{ matrix.target }}/release" \
           CC_SWITCH_BINARY="$PWD/vendor/cc-switch/src-tauri/target/${{ matrix.target }}/release/cc-switch" \
@@ -226,7 +241,7 @@ jobs:
       - name: Build macOS zip asset
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${CLAWKIT_RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           mkdir -p dist/macos/app-${{ matrix.arch }}
           cp "target/${{ matrix.target }}/release/codex-plus-plus" "dist/macos/app-${{ matrix.arch }}/"
@@ -254,7 +269,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${CLAWKIT_RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           tar -czf "dist/macos/ClawKit-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz" \
             -C dist/macos/stage "ClawKit Desktop.app"
@@ -271,7 +286,7 @@ jobs:
             echo "TAURI_SIGNING_PRIVATE_KEY is required for every ClawKit release" >&2
             exit 1
           fi
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${CLAWKIT_RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           ARCHIVE="../../dist/macos/ClawKit-${VERSION}-macos-${{ matrix.arch }}.app.tar.gz"
           PRIVATE_KEY_PATH="$(mktemp "${RUNNER_TEMP:-/tmp}/clawkit-tauri-updater.XXXXXX")"
@@ -289,15 +304,19 @@ jobs:
       - name: Verify macOS updater trust
         run: node .github/scripts/verify-updater-signature.mjs vendor/cc-switch/src-tauri/tauri.conf.json dist/macos/*.app.tar.gz
 
-      - name: Upload macOS DMG
-        uses: softprops/action-gh-release@v2
+      - name: Archive macOS installers
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.event.release.tag_name }}
-          files: |
-            dist/macos/*.dmg
-            dist/macos/*.zip
-            dist/macos/*.app.tar.gz
-            dist/macos/*.app.tar.gz.sig
+          name: clawkit-macos-${{ matrix.arch }}-${{ env.CLAWKIT_RELEASE_TAG }}
+          path: dist/macos/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload macOS DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: node .github/scripts/upload-release-assets.mjs dist/macos
 
   latest-json:
     name: Upload static latest.json
@@ -310,7 +329,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ env.CLAWKIT_RELEASE_TAG }}
         shell: bash
         run: |
           set -euo pipefail
@@ -339,7 +358,7 @@ jobs:
       - name: Upload latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ env.CLAWKIT_RELEASE_TAG }}
           REPO: ${{ github.repository }}
         shell: bash
         run: gh release upload "$TAG" latest.json --clobber --repo "$REPO"
@@ -353,7 +372,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
 
       - name: Check backend publishing configuration
         id: config
@@ -371,7 +390,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ env.CLAWKIT_RELEASE_TAG }}
         run: gh release download "$TAG" --repo "$REPO" --pattern "ClawKit-*.exe" --pattern "ClawKit-*.exe.sig" --pattern "ClawKit-*.dmg" --pattern "ClawKit-*.app.tar.gz" --pattern "ClawKit-*.app.tar.gz.sig" --dir installers
 
       - name: Upload and publish release in ClawKit backend
@@ -379,8 +398,8 @@ jobs:
         env:
           API_BASE: ${{ secrets.CLAWKIT_API_BASE }}
           RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ env.CLAWKIT_RELEASE_TAG }}
           RELEASE_REPOSITORY: ${{ github.repository }}
-          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_BODY: ${{ github.event.release.body || '手机历史分页、已发送消息导航及原 Codex 项目内新建。配套手机 0.1.10。' }}
         shell: bash
         run: node .github/scripts/publish-clawkit-release.mjs installers
