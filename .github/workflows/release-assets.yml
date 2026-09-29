@@ -143,9 +143,14 @@ jobs:
 
       - name: Archive Windows installers
         uses: actions/upload-artifact@v4
+        timeout-minutes: 5
+        continue-on-error: true
         with:
           name: clawkit-windows-${{ env.CLAWKIT_RELEASE_TAG }}
-          path: dist/windows/*
+          path: |
+            dist/windows/ClawKit-*.exe
+            dist/windows/ClawKit-*.exe.sig
+            dist/windows/ClawKit-*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -306,9 +311,17 @@ jobs:
 
       - name: Archive macOS installers
         uses: actions/upload-artifact@v4
+        timeout-minutes: 5
+        continue-on-error: true
         with:
           name: clawkit-macos-${{ matrix.arch }}-${{ env.CLAWKIT_RELEASE_TAG }}
-          path: dist/macos/*
+          # The staging directory includes an /Applications symlink. Archive
+          # only final files, never recurse through the DMG staging tree.
+          path: |
+            dist/macos/ClawKit-*.dmg
+            dist/macos/ClawKit-*.zip
+            dist/macos/ClawKit-*.app.tar.gz
+            dist/macos/ClawKit-*.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 30
 
