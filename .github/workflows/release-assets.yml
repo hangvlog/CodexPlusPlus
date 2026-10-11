@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 5c3a201541f33cc60351aa4da8669d522464ec27
+          ref: 475a8c7d55a9af36e071997e22105748fbe69847
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -184,7 +184,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 5c3a201541f33cc60351aa4da8669d522464ec27
+          ref: 475a8c7d55a9af36e071997e22105748fbe69847
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -413,6 +413,6 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.CLAWKIT_RELEASE_TOKEN }}
           TAG: ${{ env.CLAWKIT_RELEASE_TAG }}
           RELEASE_REPOSITORY: ${{ github.repository }}
-          RELEASE_BODY: ${{ github.event.release.body || '手机历史分页、已发送消息导航及原 Codex 项目内新建。配套手机 0.1.10。' }}
+          RELEASE_BODY: ${{ github.event.release.body || 'macOS 手机新建任务接入原 Codex 引擎，无需辅助功能；请通过 ClawKit 打开 Codex。配套手机 0.1.16。Windows 原生新建暂未启用。' }}
         shell: bash
         run: node .github/scripts/publish-clawkit-release.mjs installers
