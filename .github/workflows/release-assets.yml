@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 475a8c7d55a9af36e071997e22105748fbe69847
+          ref: cac52867a536e9a50a95f5fe19575e68aba0f3bf
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -184,7 +184,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 475a8c7d55a9af36e071997e22105748fbe69847
+          ref: cac52867a536e9a50a95f5fe19575e68aba0f3bf
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
