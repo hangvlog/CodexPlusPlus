@@ -13,13 +13,15 @@ ICON_SOURCE="$ROOT/apps/codex-plus-manager/src-tauri/icons/icon.png"
 ICON_NAME="codex-plus-plus.icns"
 ICON_ICNS="$DIST/$ICON_NAME"
 
-rm -rf "$DIST"
+if [ -e "$DIST" ]; then
+  echo "error: packaging output already exists: $DIST; use a fresh build directory" >&2
+  exit 1
+fi
 mkdir -p "$STAGE"
 
 prepare_icon() {
   local iconset="$DIST/codex-plus-plus.iconset"
-  rm -rf "$iconset"
-  mkdir -p "$iconset"
+  mkdir "$iconset"
 
   sips -z 16 16 "$ICON_SOURCE" --out "$iconset/icon_16x16.png" >/dev/null
   sips -z 32 32 "$ICON_SOURCE" --out "$iconset/icon_16x16@2x.png" >/dev/null
@@ -49,7 +51,6 @@ create_app() {
     return 1
   fi
 
-  rm -rf "$app_dir"
   mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
   cp "$binary_path" "$app_dir/Contents/MacOS/$executable_name"
   cp "$ICON_ICNS" "$app_dir/Contents/Resources/$ICON_NAME"
