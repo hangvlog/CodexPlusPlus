@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 524fa3e6eb79170feddbc0a35dafab19c4d38668
+          ref: 99f19162b94d6b5ccd806edd6c5265f439055b72
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -70,6 +70,9 @@ jobs:
       - name: Build frontend
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
+
+      - name: Test account identity migration
+        run: cargo test --locked -p codex-plus-core --test clawkit_account
 
       - name: Build binaries
         run: cargo build --locked --release
@@ -184,7 +187,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 524fa3e6eb79170feddbc0a35dafab19c4d38668
+          ref: 99f19162b94d6b5ccd806edd6c5265f439055b72
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -224,6 +227,9 @@ jobs:
       - name: Build frontend
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
+
+      - name: Test account identity migration
+        run: cargo test --locked -p codex-plus-core --test clawkit_account
 
       - name: Build binaries
         run: cargo build --locked --release --target ${{ matrix.target }}

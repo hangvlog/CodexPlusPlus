@@ -166,6 +166,10 @@ fn status_and_logout_do_not_expose_the_jwt() {
     assert!(status.get("token").is_none());
     assert_eq!(client.logout().unwrap()["authenticated"], false);
     assert!(!session_path.exists());
+    assert_eq!(
+        std::fs::read_to_string(session_path.with_extension("device-id")).unwrap(),
+        "clawkit-codex-test-device"
+    );
 }
 
 #[test]
@@ -198,4 +202,46 @@ async fn unreachable_account_service_returns_actionable_network_guidance() {
     assert!(message.contains("无法连接 ClawKit 账号服务"));
     assert!(message.contains("直连重试仍未成功"));
     assert!(message.contains("代理、防火墙和 DNS"));
+}
+
+#[tokio::test]
+async fn relogin_keeps_device_after_expiry_and_logout() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/auth/login"))
+        .and(body_json(
+            json!({ "username": "alice", "password": "test-password",
+            "device_id": "existing-device", "product": "codex-remote" }),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "code": 200, "data": { "token": "new-token", "expires_in": 3600, "user": {"id": 8} }
+        })))
+        .mount(&server)
+        .await;
+    for expired in [true, false] {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("clawkit-account.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({ "token": "old-token", "user": {"id": 7},
+            "device_id": "existing-device", "expires_at": if expired {1} else {u64::MAX} }))
+            .unwrap(),
+        )
+        .unwrap();
+        let client = ClawkitAccountClient::new(server.uri(), &path).unwrap();
+        if expired {
+            assert_eq!(client.status()["authenticated"], false);
+        } else {
+            client.logout().unwrap();
+        }
+        assert!(!path.exists());
+        let restarted = ClawkitAccountClient::new(server.uri(), &path).unwrap();
+        let status = restarted.login("alice", "test-password").await.unwrap();
+        assert_eq!(status["device_id"], "existing-device");
+        assert_eq!(status["user"]["id"], 8);
+        assert_eq!(
+            std::fs::read_to_string(path.with_extension("device-id")).unwrap(),
+            "existing-device"
+        );
+    }
 }
