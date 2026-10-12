@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 9559e3565f6c8645c4ac839c1fc477d2964f06be
+          ref: 0e3d78e85e0bda6632b42da4873d6eb92315e069
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -71,8 +71,10 @@ jobs:
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
 
-      - name: Test account identity migration
-        run: cargo test --locked -p codex-plus-core --test clawkit_account
+      - name: Test account identity and desktop recency
+        run: |
+          cargo test --locked -p codex-plus-core --test clawkit_account
+          cargo test --locked --manifest-path vendor/cc-switch/src-tauri/crates/desktop-bridge/Cargo.toml catalog::tests::desktop_names_projects_and_old_pins_survive_pagination
 
       - name: Build binaries
         run: cargo build --locked --release
@@ -187,7 +189,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hangvlog/cc-switch
-          ref: 9559e3565f6c8645c4ac839c1fc477d2964f06be
+          ref: 0e3d78e85e0bda6632b42da4873d6eb92315e069
           path: vendor/cc-switch
 
       - name: Verify pinned shell version
@@ -228,8 +230,10 @@ jobs:
         working-directory: apps/codex-plus-manager
         run: pnpm vite:build
 
-      - name: Test account identity migration
-        run: cargo test --locked -p codex-plus-core --test clawkit_account
+      - name: Test account identity and desktop recency
+        run: |
+          cargo test --locked -p codex-plus-core --test clawkit_account
+          cargo test --locked --manifest-path vendor/cc-switch/src-tauri/crates/desktop-bridge/Cargo.toml catalog::tests::desktop_names_projects_and_old_pins_survive_pagination
 
       - name: Build binaries
         run: cargo build --locked --release --target ${{ matrix.target }}
