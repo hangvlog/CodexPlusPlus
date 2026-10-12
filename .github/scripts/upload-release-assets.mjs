@@ -11,7 +11,11 @@ function gh(args, capture=false) {
   if(result.status!==0) throw new Error(`GitHub operation failed: ${args[0]}`);
   return result.stdout;
 }
-const release=JSON.parse(gh(['api',`repos/${repo}/releases/tags/${tag}`],true));
+// GitHub's tag endpoint returns 404 for drafts. The authenticated release
+// inventory includes drafts, so select the exact immutable tag there.
+const releases=JSON.parse(gh(['api',`repos/${repo}/releases?per_page=100`,'--paginate','--slurp'],true)).flat();
+const release=releases.find(item=>item.tag_name===tag);
+if (!release) throw new Error(`Release not found: ${tag}`);
 for(const name of readdirSync(directory).filter(n=>/\.(dmg|zip|exe|gz|sig)$/.test(n)).sort()) {
   const path=join(directory,name), bytes=statSync(path).size;
   const hash='sha256:'+createHash('sha256').update(readFileSync(path)).digest('hex');

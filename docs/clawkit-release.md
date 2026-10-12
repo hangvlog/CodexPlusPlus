@@ -45,3 +45,10 @@ whose WebView opens `about:blank` because the renderer asset metadata was not su
 Tauri CLI. Both PR and release workflows run `scripts/installer/verify-tauri-frontend.py`
 before packaging and fail unless the hashed JavaScript and CSS paths from `dist/index.html`
 are embedded in the desktop executable.
+
+Draft releases are resolved through the authenticated, paginated release inventory by exact tag.
+GitHub's `releases/tags/{tag}` endpoint returns 404 for a draft even when the authenticated
+inventory and `gh release view` can see it. Asset uploads preserve release metadata and reject
+any existing filename whose size or digest differs. If a release upload fails after Actions
+has archived the signed installers, recover those exact artifacts instead of rebuilding or
+moving the immutable tag; record both the build commit and upload-recovery commit.
