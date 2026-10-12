@@ -14,13 +14,17 @@ distribution are branded as ClawKit Desktop.
 - Windows installer: `ClawKit-{version}-windows-x64-setup.exe`
 - macOS installers: `ClawKit-{version}-macos-{x64|arm64}.dmg`
 
-The release workflow uses pnpm and uploads installers to the existing backend when
-`CLAWKIT_API_BASE` and `CLAWKIT_RELEASE_TOKEN` repository secrets are configured. The backend
+Installer builds run on local macOS and the SSH-managed high-performance Windows
+D-GM12JWEF-1416, using pinned commits, locked dependencies and the existing packaging scripts.
+GitHub Actions installer builds are disabled; publishing a release no longer starts a build.
+GitHub still hosts source and immutable release assets. The canonical publisher uploads
+locally built installers to the existing backend using authorized local credentials. The backend
 computes SHA-256 while uploading. The desktop updater rejects a downloaded installer when the
 digest does not match the update manifest.
 
 Windows releases are also signed with the long-lived Tauri updater key stored in GitHub Actions
-secrets. The workflow fails if the signing or backend publishing configuration is missing, and it
+secrets for historical builds; future local builds require the same authorized signing identity.
+Missing local signing credentials must be resolved before publication, never bypassed. The publisher
 uploads the installer before its matching `.sig` so the backend can atomically attach the signature.
 
 The public installer is an integrated package: the CC Switch-derived shell is the main

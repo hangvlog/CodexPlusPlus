@@ -1,4 +1,6 @@
-name: Release assets
+name: Release assets (legacy manual recovery)
+# Installer builds now run on local macOS and the managed high-performance Windows.
+# This disabled workflow is retained only to inspect/recover historical builds.
 
 on:
   workflow_dispatch:
@@ -7,8 +9,6 @@ on:
         description: Existing immutable release tag to build and upload
         required: true
         type: string
-  release:
-    types: [published]
 
 permissions:
   contents: write

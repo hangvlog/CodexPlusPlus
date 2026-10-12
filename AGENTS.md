@@ -51,6 +51,13 @@
 - 断言读 config.toml 文本，如 `assert!(config.contains("model_catalog_json"))`
 - 改行为要同步改/加对应测试
 
+## 安装包构建位置（2026-10-12）
+
+- 后续安装包直接使用本机 macOS 和 SSH 控制的 Windows 构建，不再依赖 GitHub Actions 编译、签名或打包。macOS / iOS 用本机；Windows 及工具链支持的重型打包优先高性能受控机 D-GM12JWEF-1416。
+- Windows 统一使用 `/Users/hang/.codex/skills/ssh-windows-control/SKILL.md`，先实时核验身份、资源、工具链和已有任务。不可用时诊断并说明缺项，不自动转家用 HANG 或 GitHub runner。
+- 构建使用已提交推送的准确 SHA、锁定依赖与现有正式脚本，保留签名、摘要及目标平台运行验证。GitHub 继续用于源码、标签、Release 和产物下载；记录构建设备、命令、SHA、产物哈希与回滚版本。
+- `release-assets.yml` 的 Release 自动触发已移除，线上工作流停用；仅为历史构建恢复保留定义，不默认启用或重跑。已启动的 3.19.40 构建只收尾并回收归档，不为迁移构建位置重复编译。
+
 ## 与上游同步
 
 - `upstream` = https://github.com/BigPizzaV3/CodexPlusPlus.git
