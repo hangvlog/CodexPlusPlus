@@ -56,3 +56,7 @@ inventory and `gh release view` can see it. Asset uploads preserve release metad
 any existing filename whose size or digest differs. If a release upload fails after Actions
 has archived the signed installers, recover those exact artifacts instead of rebuilding or
 moving the immutable tag; record both the build commit and upload-recovery commit.
+
+## Local build 3.19.41
+
+Desktop shell source is hangvlog/cc-switch at f8adcc82 (file attachments); pin the full SHA in the build manifest before packaging. Build launcher/settings from this repository commit with pnpm 10.12.3 and Cargo locked dependencies. Use local macOS and managed enterprise Windows only. Original updater signing identity is still required before publication; unsigned build output is not a released update.
