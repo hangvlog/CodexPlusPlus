@@ -6,7 +6,7 @@ permissions:
 jobs:
   sign:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -16,13 +16,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --location --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-windows-x64.exe https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-windows-x64.exe
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-windows-x64.exe https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-windows-x64.exe
           echo 'fba38d5515879a8b4f1bea6d6c183f43b39ad3d8cdffa8768376306d4f83dbe5  ClawKit-3.19.75-windows-x64.exe' | sha256sum --check --strict
-          curl --fail --location --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-macos-arm64.app.tar.gz https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-macos-arm64.app.tar.gz
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-macos-arm64.app.tar.gz https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-macos-arm64.app.tar.gz
           echo '0d713e5223c2b935c78eb5a2db0f25f9cfc3430614db10d3deb987f50c79765a  ClawKit-3.19.75-macos-arm64.app.tar.gz' | sha256sum --check --strict
-          curl --fail --location --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-macos-x64.app.tar.gz https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-macos-x64.app.tar.gz
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.19.75-macos-x64.app.tar.gz https://clawkit.chat/api/releases/download/3.19.75/ClawKit-3.19.75-macos-x64.app.tar.gz
           echo '327e0b8c794d68d81f1f858b58ad84c2e7f850e23b35eac487a6bea8d3057c3c  ClawKit-3.19.75-macos-x64.app.tar.gz' | sha256sum --check --strict
-          curl --fail --location --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/d00696290df763206acd848386dccabd0ad335d4/src-tauri/tauri.conf.json
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/d00696290df763206acd848386dccabd0ad335d4/src-tauri/tauri.conf.json
       - name: Sign without building or changing installer bytes
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
