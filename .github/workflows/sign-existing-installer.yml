@@ -1,0 +1,42 @@
+name: Sign verified existing ClawKit installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Download the exact independently built and tested installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --proto '=https' --tlsv1.2 --output ClawKit-3.19.74-windows-x64.exe https://clawkit.chat/api/releases/download/3.19.74/ClawKit-3.19.74-windows-x64.exe
+          echo '0912b6d0d18d4da2282f0172d42f5c42dcc45b018c9b436036e84c18a4c86ebd  ClawKit-3.19.74-windows-x64.exe' | sha256sum --check --strict
+          curl --fail --location --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/282148d0eee422e0121eab2db746f4c272e36553/src-tauri/tauri.conf.json
+      - name: Sign without building or changing installer bytes
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          umask 077
+          key="$RUNNER_TEMP/clawkit-updater.key"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$key"
+          npx --yes --package @tauri-apps/cli@2.8.1 tauri signer sign --private-key-path "$key" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ClawKit-3.19.74-windows-x64.exe
+          node .github/scripts/verify-updater-signature.mjs shell-config.json ClawKit-3.19.74-windows-x64.exe
+          echo '0912b6d0d18d4da2282f0172d42f5c42dcc45b018c9b436036e84c18a4c86ebd  ClawKit-3.19.74-windows-x64.exe' | sha256sum --check --strict
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: clawkit-3.19.74-signature-only
+          path: ClawKit-3.19.74-windows-x64.exe.sig
+          if-no-files-found: error
+          retention-days: 3
