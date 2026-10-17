@@ -1,5 +1,10 @@
 ﻿Unicode true
 !include "MUI2.nsh"
+!include "FileFunc.nsh"
+
+Var UpdateMode
+Var RestartRequested
+Var AppArgs
 
 !ifndef VERSION
   !define VERSION "0.0.0"
@@ -24,6 +29,34 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
+
+; Tauri invokes NSIS with /P /R /UPDATE and optional original /ARGS.
+; Only updater invocations skip the wizard; manual installs retain the normal UI.
+Function .onInit
+  StrCpy $UpdateMode "0"
+  StrCpy $RestartRequested "0"
+  StrCpy $AppArgs ""
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  IfErrors checkRestart
+    StrCpy $UpdateMode "1"
+    SetSilent silent
+  checkRestart:
+  ClearErrors
+  ${GetOptions} $R0 "/R" $R1
+  IfErrors readArgs
+    StrCpy $RestartRequested "1"
+  readArgs:
+  ${GetOptions} $R0 "/ARGS" $AppArgs
+FunctionEnd
+
+Function .onInstSuccess
+  StrCmp $UpdateMode "1" 0 done
+  StrCmp $RestartRequested "1" 0 done
+  Exec '"$INSTDIR\clawkit-desktop.exe" $AppArgs'
+  done:
+FunctionEnd
 
 Section "Install"
   SetOutPath "$INSTDIR"
