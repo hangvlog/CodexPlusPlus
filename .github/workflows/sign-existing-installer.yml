@@ -16,11 +16,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.0-windows-x64.exe https://clawkit.chat/api/releases/download/3.20.0/ClawKit-3.20.0-windows-x64.exe
-          echo 'd26f7c515fce7e71865f7d005f64f8405a0f3e0ed36704eb976267acbb374133  ClawKit-3.20.0-windows-x64.exe' | sha256sum --check --strict
-          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.0-macos-arm64.app.tar.gz https://clawkit.chat/api/releases/download/3.20.0/ClawKit-3.20.0-macos-arm64.app.tar.gz
-          echo 'dda958e85c07d32569e85af8b576da0341da2158b60783ff4ac491959e247468  ClawKit-3.20.0-macos-arm64.app.tar.gz' | sha256sum --check --strict
-          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/ba437c8d06eece64c16f0462010b398d52bb4c35/src-tauri/tauri.conf.json
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-windows-x64.exe https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-windows-x64.exe
+          echo '0d0374ef995cec55112e0fc694e99d07730f8e518ed1083d20a8f6352ef9021a  ClawKit-3.20.1-windows-x64.exe' | sha256sum --check --strict
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-macos-arm64.app.tar.gz https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-macos-arm64.app.tar.gz
+          echo 'dab0582b77744229ef7840dc48d55ab2e97c71fe451a124446441c9264142a14  ClawKit-3.20.1-macos-arm64.app.tar.gz' | sha256sum --check --strict
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/1c0a156f8c4e8530355dbaa6547375639176f908/src-tauri/tauri.conf.json
       - name: Sign without building or changing installer bytes
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -33,17 +33,17 @@ jobs:
           key="$RUNNER_TEMP/clawkit-updater.key"
           trap 'rm -f "$key"' EXIT
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > "$key"
-          npx --yes --package @tauri-apps/cli@2.8.1 tauri signer sign --private-key-path "$key" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ClawKit-3.20.0-windows-x64.exe
-          node .github/scripts/verify-updater-signature.mjs shell-config.json ClawKit-3.20.0-windows-x64.exe
-          echo 'd26f7c515fce7e71865f7d005f64f8405a0f3e0ed36704eb976267acbb374133  ClawKit-3.20.0-windows-x64.exe' | sha256sum --check --strict
-          npx --yes --package @tauri-apps/cli@2.8.1 tauri signer sign --private-key-path "$key" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ClawKit-3.20.0-macos-arm64.app.tar.gz
-          node .github/scripts/verify-updater-signature.mjs shell-config.json ClawKit-3.20.0-macos-arm64.app.tar.gz
-          echo 'dda958e85c07d32569e85af8b576da0341da2158b60783ff4ac491959e247468  ClawKit-3.20.0-macos-arm64.app.tar.gz' | sha256sum --check --strict
+          npx --yes --package @tauri-apps/cli@2.8.1 tauri signer sign --private-key-path "$key" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ClawKit-3.20.1-windows-x64.exe
+          node .github/scripts/verify-updater-signature.mjs shell-config.json ClawKit-3.20.1-windows-x64.exe
+          echo '0d0374ef995cec55112e0fc694e99d07730f8e518ed1083d20a8f6352ef9021a  ClawKit-3.20.1-windows-x64.exe' | sha256sum --check --strict
+          npx --yes --package @tauri-apps/cli@2.8.1 tauri signer sign --private-key-path "$key" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ClawKit-3.20.1-macos-arm64.app.tar.gz
+          node .github/scripts/verify-updater-signature.mjs shell-config.json ClawKit-3.20.1-macos-arm64.app.tar.gz
+          echo 'dab0582b77744229ef7840dc48d55ab2e97c71fe451a124446441c9264142a14  ClawKit-3.20.1-macos-arm64.app.tar.gz' | sha256sum --check --strict
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: clawkit-3.20.0-signatures-only
+          name: clawkit-3.20.1-signatures-only
           path: |
-            ClawKit-3.20.0-windows-x64.exe.sig
-            ClawKit-3.20.0-macos-arm64.app.tar.gz.sig
+            ClawKit-3.20.1-windows-x64.exe.sig
+            ClawKit-3.20.1-macos-arm64.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 3
