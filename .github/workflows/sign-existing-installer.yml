@@ -1,12 +1,21 @@
 name: Sign verified existing ClawKit installer
 on:
   workflow_dispatch:
+    inputs:
+      windows_url:
+        description: Optional mirror URL for the Windows installer (bytes are still checked against SHA-256)
+        required: false
+        default: ''
+      macos_arm64_url:
+        description: Optional mirror URL for the macOS arm64 updater archive (bytes are still checked against SHA-256)
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
   sign:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -14,11 +23,14 @@ jobs:
           node-version: '22'
       - name: Download the exact independently built and tested installer
         shell: bash
+        env:
+          WINDOWS_URL: ${{ inputs.windows_url }}
+          MACOS_ARM64_URL: ${{ inputs.macos_arm64_url }}
         run: |
           set -euo pipefail
-          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-windows-x64.exe https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-windows-x64.exe
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-windows-x64.exe "${WINDOWS_URL:-https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-windows-x64.exe}"
           echo '0d0374ef995cec55112e0fc694e99d07730f8e518ed1083d20a8f6352ef9021a  ClawKit-3.20.1-windows-x64.exe' | sha256sum --check --strict
-          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-macos-arm64.app.tar.gz https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-macos-arm64.app.tar.gz
+          curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output ClawKit-3.20.1-macos-arm64.app.tar.gz "${MACOS_ARM64_URL:-https://clawkit.chat/api/releases/download/3.20.1/ClawKit-3.20.1-macos-arm64.app.tar.gz}"
           echo 'dab0582b77744229ef7840dc48d55ab2e97c71fe451a124446441c9264142a14  ClawKit-3.20.1-macos-arm64.app.tar.gz' | sha256sum --check --strict
           curl --fail --location --retry 2 --retry-all-errors --retry-delay 2 --continue-at - --proto '=https' --tlsv1.2 --output shell-config.json https://raw.githubusercontent.com/hangvlog/cc-switch/1c0a156f8c4e8530355dbaa6547375639176f908/src-tauri/tauri.conf.json
       - name: Sign without building or changing installer bytes
